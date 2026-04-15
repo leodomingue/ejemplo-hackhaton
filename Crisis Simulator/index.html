@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Foresight</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="config.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html,body,#root{height:100%;}
+    body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:#07090f;color:#e8edf5;-webkit-font-smoothing:antialiased;font-feature-settings:"cv11","ss01";}
+    textarea,input,select,button{font-family:inherit;}
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    ::-webkit-scrollbar-thumb{background:#2a1f10;border-radius:10px;}
+    ::-webkit-scrollbar-thumb:hover{background:#F9731640;}
+    @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+    @keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+    .slide-up{animation:slideUp .35s ease forwards;}
+    .fade-in{animation:fadeIn .3s ease forwards;}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useRef, useEffect } = React;
+
+// ─── TOKENS ───────────────────────────────────────────────────────────────────
+const C = {
+  bg:"#07090f", bgCard:"#0d1220", bgHover:"#111829", bgModal:"rgba(7,9,15,0.88)",
+  border:"#1a2640", borderMid:"#1e3054",
+  text:"#e8edf5", muted:"#5d7499", hint:"#243044",
+  accent:"#F97316", accentSoft:"rgba(249,115,22,0.10)", accentText:"#fb923c",
+  green:"#10b981", greenSoft:"rgba(16,185,129,0.1)", greenText:"#6ee7b7",
+  amber:"#f59e0b", amberSoft:"rgba(245,158,11,0.1)", amberText:"#fcd34d",
+  red:"#f43f5e", redSoft:"rgba(244,63,94,0.1)", redText:"#fda4af",
+  orange:"#fb923c", orangeSoft:"rgba(251,146,60,0.1)", orangeText:"#fdba74",
+  purple:"#a78bfa", purpleSoft:"rgba(167,139,250,0.1)", purpleText:"#c4b5fd",
+  white:"#ffffff",
+  xBg:"#ffffff", xText:"#0f1419", xMuted:"#536471", xBorder:"#eff3f4", xBlue:"#1d9bf0",
+};
+const RISK = {
+  LOW:    {bg:C.greenSoft,  text:C.greenText,  dot:C.green,  label:"LOW"},
+  MEDIUM: {bg:C.amberSoft,  text:C.amberText,  dot:C.amber,  label:"MEDIUM"},
+  HIGH:   {bg:C.orangeSoft, text:C.orangeText, dot:C.orange, label:"HIGH"},
+  CRITICAL:{bg:C.redSoft,   text:C.redText,    dot:C.red,    label:"CRITICAL"},
+};
+const SENT = {
+  positive:{bg:C.greenSoft,c:C.greenText},
+  negative:{bg:C.redSoft,c:C.redText},
+  neutral:{bg:"rgba(93,116,153,0.12)",c:C.muted},
+  ironic:{bg:C.purpleSoft,c:C.purpleText},
+};
+const FIG_COLORS = ["#F97316","#f59e0b","#f43f5e","#10b981","#a78bfa","#06b6d4","#5c7cfa"];
+const MONTHS = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"];
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+const uid = () => Math.random().toString(36).slice(2,10);
+const inits = name => name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+
+const STORE = {
+  load(){ try{ return JSON.parse(localStorage.getItem("foresight_v2")||"[]"); }catch{ return []; }},
+  save(p){ localStorage.setItem("foresight_v2", JSON.stringify(p)); },
+};
+
+async function callClaude(system, userMsg, maxTokens=2000){
+  const key = window.ANTHROPIC_API_KEY;
+  if(!key||key.includes("PASTE")) throw new Error("Add your API key to config.js");
+  const res = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-api-key":key,
+      "anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:maxTokens,system,
+      messages:[{role:"user",content:userMsg}]})
+  });
+  const data = await res.json();
+  if(data.error) throw new Error(data.error.message);
+  return (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
+}
+const parseJSON = raw => JSON.parse(raw.replace(/```json|```/g,"").trim());
+
+// ─── BACKEND INTEGRATION ──────────────────────────────────────────────────────
+const BACKEND_URL = "http://localhost:8000";
+
+function isCrisisInput(text){
+  const t = text.toLowerCase().trim();
+  return t.startsWith("soy ") || t.startsWith("acabo") || t.startsWith("anuncié") ||
+    t.startsWith("anuncie") || t.startsWith("publiqué") || t.startsWith("publique") ||
+    t.startsWith("firmé") || t.startsWith("firme") || t.startsWith("hoy ") ||
+    t.includes("como ceo") || t.includes("como presidente") || t.includes("como director") ||
+    (t.length > 40 && (t.includes("anunci") || t.includes("despid") || t.includes("declar")));
+}
+
+// ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
+function Badge({children,bg,color,dot}){
+  return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:100,
+    background:bg,color,fontSize:11,fontWeight:600,letterSpacing:"0.04em",whiteSpace:"nowrap"}}>
+    {dot&&<span style={{width:5,height:5,borderRadius:"50%",background:dot,display:"inline-block"}}/>}
+    {children}
+  </span>;
+}
+function Spinner({size=5,color=C.accent}){
+  return <div style={{display:"flex",gap:4,alignItems:"center"}}>
+    {[0,1,2].map(i=><div key={i} style={{width:size,height:size,borderRadius:"50%",background:color,
+      animation:`pulse 1.2s ease ${i*0.2}s infinite`}}/>)}
+  </div>;
+}
+function KpiCard({label,value,sub,subColor=C.muted}){
+  return <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px",flex:1,minWidth:110,boxShadow:"inset 0 1px 0 rgba(249,115,22,0.08)"}}>
+    <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}}>{label}</div>
+    <div style={{fontSize:22,fontWeight:800,color:C.text,lineHeight:1,marginBottom:4}}>{value}</div>
+    {sub&&<div style={{fontSize:11,color:subColor,fontWeight:500}}>{sub}</div>}
+  </div>;
+}
+
+// ─── SVG CHART ────────────────────────────────────────────────────────────────
+function ApprovalChart({data,color}){
+  const [tt,setTt]=useState(null);
+  if(!data?.length) return <div style={{height:130,display:"flex",alignItems:"center",justifyContent:"center",color:C.hint,fontSize:12}}>No data yet</div>;
+  const W=500,H=120,PL=30,PR=8,PT=8,PB=22;
+  const vals=data.map(d=>d.v), minV=Math.min(...vals)-4, maxV=Math.max(...vals)+4;
+  const xS=i=>PL+i*(W-PL-PR)/(data.length-1);
+  const yS=v=>PT+(H-PT-PB)*(1-(v-minV)/(maxV-minV||1));
+  const pts=data.map((d,i)=>[xS(i),yS(d.v)]);
+  const line=pts.map((p,i)=>(i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`)).join(" ");
+  const area=`${line} L${pts[pts.length-1][0]},${H-PB} L${pts[0][0]},${H-PB} Z`;
+  const step=(W-PL-PR)/(data.length-1);
+  const gid=`g${color.replace("#","")}`;
+  return <div style={{position:"relative"}}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:H,display:"block"}} onMouseLeave={()=>setTt(null)}>
+      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor={color} stopOpacity={0.2}/><stop offset="100%" stopColor={color} stopOpacity={0}/>
+      </linearGradient></defs>
+      {yS(50)>PT&&yS(50)<H-PB&&<line x1={PL} y1={yS(50)} x2={W-PR} y2={yS(50)} stroke={C.hint} strokeDasharray="4 3" strokeWidth={1}/>}
+      {[Math.ceil(minV/5)*5,50].filter(v=>v>minV&&v<maxV).map(v=>(
+        <text key={v} x={PL-4} y={yS(v)+4} textAnchor="end" fontSize={9} fill={C.muted}>{v}%</text>
+      ))}
+      <path d={area} fill={`url(#${gid})`}/>
+      <path d={line} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round"/>
+      {pts.map(([x,y],i)=>(
+        <g key={i} onMouseEnter={()=>setTt({i,x,y,d:data[i]})}>
+          <rect x={x-step/2} y={PT} width={step} height={H-PT-PB} fill="transparent"/>
+          {tt?.i===i&&<circle cx={x} cy={y} r={4} fill={color} stroke={C.bg} strokeWidth={2}/>}
+        </g>
+      ))}
+      {data.map((d,i)=>(i%2===0||i===data.length-1)&&(
+        <text key={i} x={xS(i)} y={H-5} textAnchor="middle" fontSize={9} fill={C.muted}>{d.month}</text>
+      ))}
+    </svg>
+    {tt&&<div style={{position:"absolute",top:tt.y-44,left:Math.min(Math.max(tt.x-30,0),W-80),
+      background:C.bgCard,border:`1px solid ${C.borderMid}`,borderRadius:8,padding:"6px 10px",pointerEvents:"none",zIndex:20}}>
+      <div style={{fontSize:10,color:C.muted}}>{tt.d.month}</div>
+      <div style={{fontSize:15,fontWeight:700,color:C.text}}>{tt.d.v}%</div>
+    </div>}
+  </div>;
+}
+
+// ─── PROJECT CREATOR ─────────────────────────────────────────────────────────
+function ProjectCreator({onDone,onClose}){
+  const [step,setStep]=useState("input");
+  const [name,setName]=useState("");
+  const [error,setError]=useState("");
+  const [result,setResult]=useState(null);
+  const ref=useRef(null);
+  useEffect(()=>{ setTimeout(()=>ref.current?.focus(),80); },[]);
+
+  async function create(){
+    if(!name.trim()) return;
+    setStep("loading"); setError("");
+    try{
+      const raw=await callClaude(
+        "You are a political intelligence analyst. Return ONLY valid JSON, no markdown.",
+        `Research this public figure and build a comprehensive intelligence profile: "${name.trim()}"
+
+Return this exact JSON:
+{
+  "name": "Full official name",
+  "role": "Current role or title",
+  "country": "Country",
+  "bio": "2-3 sentence factual biography",
+  "recentEvents": [{"date":"Month Year","text":"Significant recent event description","s":"positive|negative|neutral"}],
+  "narratives": ["Key narrative 1","Key narrative 2","Key narrative 3","Key narrative 4"],
+  "approvalRating": 50,
+  "weeklyChange": 0.5,
+  "risk": "LOW|MEDIUM|HIGH|CRITICAL",
+  "sentiment": "Positive|Mixed|Negative",
+  "handle": "twitter_handle_without_at"
+}
+
+Include 4-6 recentEvents and 4-5 narratives. Base approvalRating, weeklyChange, and risk on real public data.`
+      );
+      const parsed=parseJSON(raw);
+      const colorIdx=STORE.load().length%FIG_COLORS.length;
+      const project={
+        id:uid(), name:parsed.name||name.trim(), color:FIG_COLORS[colorIdx],
+        createdAt:new Date().toISOString(), profile:parsed,
+        dashboard:{
+          approvalRating:parsed.approvalRating||50,
+          weeklyChange:parsed.weeklyChange||0,
+          risk:parsed.risk||"MEDIUM",
+          sentiment:parsed.sentiment||"Mixed",
+          lastUpdated:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
+          chartData:MONTHS.map((m,i)=>({month:m,v:Math.max(20,Math.min(85,(parsed.approvalRating||50)+Math.sin(i*.8)*6+Math.cos(i*1.3)*4-i*.3))})),
+          recentEvents:parsed.recentEvents||[],
+          narratives:parsed.narratives||[],
+        },
+        chat:[],
+      };
+      const all=STORE.load(); all.push(project); STORE.save(all);
+      setResult(project); setStep("done");
+    }catch(e){ setError(e.message); setStep("input"); }
+  }
+
+  return(
+    <div style={{position:"fixed",inset:0,background:C.bgModal,backdropFilter:"blur(8px)",
+      display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+      <div className="slide-up" style={{background:C.bgCard,border:`1px solid ${C.borderMid}`,
+        borderRadius:20,padding:"36px 40px",width:480,maxWidth:"calc(100vw - 32px)"}}>
+
+        {step==="input"&&<>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24}}>
+            <div style={{width:36,height:36,borderRadius:10,background:C.accentSoft,
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🔭</div>
+            <div>
+              <div style={{fontSize:16,fontWeight:700,color:C.text}}>New project</div>
+              <div style={{fontSize:12,color:C.muted}}>Add a public figure to track</div>
+            </div>
+          </div>
+          <input ref={ref} value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&create()}
+            placeholder="e.g. Emmanuel Macron, Elon Musk, Taylor Swift…"
+            style={{width:"100%",background:C.bg,border:`1px solid ${C.borderMid}`,borderRadius:10,
+              padding:"13px 14px",fontSize:14,color:C.text,outline:"none",marginBottom:8}}
+            onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.borderMid}/>
+          {error&&<div style={{fontSize:12,color:C.red,marginBottom:8}}>{error}</div>}
+          <div style={{fontSize:11,color:C.muted,marginBottom:20}}>Foresight will research this person using Claude and build a full intelligence profile.</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={onClose} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,
+              borderRadius:10,padding:"11px",fontSize:13,color:C.muted,cursor:"pointer"}}>Cancel</button>
+            <button onClick={create} disabled={!name.trim()} style={{flex:2,background:C.accent,border:"none",
+              borderRadius:10,padding:"11px",fontSize:13,fontWeight:600,color:C.white,
+              cursor:name.trim()?"pointer":"not-allowed",opacity:name.trim()?1:0.5,
+              boxShadow:name.trim()?`0 0 20px ${C.accent}44`:"none"}}>Create project →</button>
+          </div>
+        </>}
+
+        {step==="loading"&&<div style={{textAlign:"center",padding:"24px 0"}}>
+          <div style={{fontSize:32,marginBottom:16}}>🔭</div>
+          <div style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:8}}>Researching {name}…</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:24}}>Building intelligence profile from public data</div>
+          <div style={{display:"flex",justifyContent:"center"}}><Spinner size={7}/></div>
+        </div>}
+
+        {step==="done"&&result&&<div className="fade-in">
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+            <div style={{width:48,height:48,borderRadius:"50%",background:result.color,flexShrink:0,
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"#fff"}}>
+              {inits(result.name)}
+            </div>
+            <div>
+              <div style={{fontSize:16,fontWeight:700,color:C.text}}>{result.profile.name}</div>
+              <div style={{fontSize:12,color:C.muted}}>{result.profile.role} · {result.profile.country}</div>
+            </div>
+          </div>
+          <div style={{fontSize:12,color:C.muted,lineHeight:1.7,marginBottom:14,padding:"12px 14px",
+            background:C.bg,borderRadius:10,border:`1px solid ${C.border}`}}>{result.profile.bio}</div>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:20}}>
+            <Badge bg={RISK[result.dashboard.risk]?.bg} color={RISK[result.dashboard.risk]?.text} dot={RISK[result.dashboard.risk]?.dot}>{result.dashboard.risk} risk</Badge>
+            <Badge bg={C.accentSoft} color={C.accentText}>~{result.dashboard.approvalRating}% approval</Badge>
+            <Badge bg={C.greenSoft} color={C.greenText}>Profile created ✓</Badge>
+          </div>
+          <button onClick={()=>onDone(result.id)} style={{width:"100%",background:C.accent,border:"none",
+            borderRadius:10,padding:"12px",fontSize:13,fontWeight:600,color:C.white,cursor:"pointer",
+            boxShadow:`0 0 20px ${C.accent}44`}}>
+            Open project →
+          </button>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+function Dashboard({project,onRefresh,refreshing,selectedRoute}){
+  const {profile,dashboard,color}=project;
+  const rk=RISK[dashboard.activeRoute?.risk||dashboard.risk]||RISK.MEDIUM;
+  const up=dashboard.weeklyChange>=0;
+  const routeColor=selectedRoute?.id==="AMPLIFICACION"?C.red:selectedRoute?.id==="ABSORCION"?C.amber:C.green;
+  return(
+    <div style={{flex:1,overflowY:"auto",padding:"20px 24px",display:"flex",flexDirection:"column",gap:14}}>
+      {selectedRoute&&<div style={{background:`${routeColor}11`,border:`1px solid ${routeColor}33`,
+        borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"flex-start",gap:10,animation:"slideUp .3s ease"}}>
+        <span style={{fontSize:20,flexShrink:0}}>📍</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,fontWeight:700,color:routeColor,marginBottom:2}}>Ruta activa: {selectedRoute.id}</div>
+          <div style={{fontSize:11,color:C.muted,lineHeight:1.6,marginBottom:8}}>{selectedRoute.description}</div>
+          <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>Qué hacer</div>
+          <div style={{fontSize:11,color:C.text,lineHeight:1.6}}>{selectedRoute.strategy?.recommended_action}</div>
+          {selectedRoute.strategy?.key_message&&<div style={{marginTop:8,padding:"8px 10px",background:C.bg,
+            borderRadius:8,border:`1px solid ${C.border}`,fontSize:11,color:C.muted,fontStyle:"italic"}}>
+            💬 "{selectedRoute.strategy.key_message}"
+          </div>}
+        </div>
+      </div>}
+      {/* Profile card */}
+      <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:14,padding:"18px 20px",display:"flex",gap:14,alignItems:"flex-start"}}>
+        <div style={{width:50,height:50,borderRadius:"50%",background:color,flexShrink:0,
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"#fff"}}>
+          {inits(project.name)}
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:16,fontWeight:700,color:C.text,marginBottom:2}}>{profile.name}</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:8}}>{profile.role} · {profile.country}</div>
+          <div style={{fontSize:12,color:C.muted,lineHeight:1.7}}>{profile.bio}</div>
+        </div>
+        <button onClick={onRefresh} disabled={refreshing} style={{flexShrink:0,background:C.bg,
+          border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 12px",fontSize:11,fontWeight:600,
+          color:refreshing?C.muted:C.text,cursor:refreshing?"not-allowed":"pointer",
+          display:"flex",alignItems:"center",gap:6}}>
+          {refreshing?<Spinner size={4}/>:<span>↺</span>}
+          {refreshing?"Updating…":"Refresh"}
+        </button>
+      </div>
+
+      {/* KPIs */}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        <KpiCard label="Approval" value={`${dashboard.approvalRating}%`} sub="Current avg"/>
+        <KpiCard label="Weekly Δ" value={`${up?"+":""}${dashboard.weeklyChange}%`} sub={up?"Trending up":"Trending down"} subColor={up?C.green:C.red}/>
+        <KpiCard label="Risk Level" value={<span style={{color:rk.text,fontSize:18}}>{dashboard.risk}</span>} sub="Overall exposure"/>
+        <KpiCard label="Sentiment" value={dashboard.sentiment} sub="Last 30 days"/>
+      </div>
+
+      {/* Chart */}
+      <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:14,padding:"18px 20px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:600,color:C.text,marginBottom:2}}>Approval rating — 12 months</div>
+            <div style={{fontSize:11,color:C.muted}}>Estimated · Updated {dashboard.lastUpdated}</div>
+          </div>
+          <Badge bg={rk.bg} color={rk.text} dot={rk.dot}>{dashboard.risk}</Badge>
+        </div>
+        <ApprovalChart data={dashboard.chartData} color={color}/>
+      </div>
+
+      {/* Narratives */}
+      {dashboard.narratives?.length>0&&<div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px"}}>
+        <div style={{fontSize:13,fontWeight:600,color:C.text,marginBottom:10}}>Active narratives</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {dashboard.narratives.map(n=><span key={n} style={{padding:"5px 12px",borderRadius:100,
+            border:`1px solid ${C.border}`,fontSize:12,color:C.muted,background:C.bg}}>{n}</span>)}
+        </div>
+      </div>}
+
+      {/* Events */}
+      {dashboard.recentEvents?.length>0&&<div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px"}}>
+        <div style={{fontSize:13,fontWeight:600,color:C.text,marginBottom:12}}>Recent events</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {dashboard.recentEvents.map((ev,i)=>{
+            const sc=SENT[ev.s]||SENT.neutral;
+            return<div key={i} style={{display:"flex",gap:12,paddingBottom:i<dashboard.recentEvents.length-1?10:0,
+              borderBottom:i<dashboard.recentEvents.length-1?`1px solid ${C.border}`:"none"}}>
+              <div style={{fontSize:10,color:C.muted,fontWeight:600,minWidth:56,paddingTop:2,flexShrink:0}}>{ev.date}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,color:C.text,lineHeight:1.55,marginBottom:5}}>{ev.text}</div>
+                <Badge bg={sc.bg} color={sc.c}>{ev.s}</Badge>
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+// ─── TWEET SIMULATOR ─────────────────────────────────────────────────────────
+function XMockup({figure,text,replies,riskLevel}){
+  const rk=riskLevel?RISK[riskLevel]:null;
+  const now=new Date();
+  const ts=`${now.getHours()}:${String(now.getMinutes()).padStart(2,"0")} · ${now.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`;
+  const handle=figure.profile?.handle||figure.name.split(" ").join("").toLowerCase();
+  return(
+    <div style={{fontFamily:"-apple-system,'Segoe UI',sans-serif",color:C.xText}}>
+      {rk&&<div style={{background:rk.bg,border:`1px solid ${rk.dot}33`,borderRadius:10,
+        padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+        <span style={{width:6,height:6,borderRadius:"50%",background:rk.dot,display:"inline-block"}}/>
+        <span style={{fontSize:12,fontWeight:600,color:rk.text}}>Pre-publish risk: <strong>{riskLevel}</strong></span>
+      </div>}
+      <div style={{background:C.xBg,border:`1px solid ${C.xBorder}`,borderRadius:16,overflow:"hidden"}}>
+        <div style={{padding:"16px 16px 0"}}>
+          <div style={{display:"flex",gap:12}}>
+            <div style={{width:46,height:46,borderRadius:"50%",background:figure.color,
+              display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",
+              fontWeight:800,fontSize:15,flexShrink:0}}>{inits(figure.name)}</div>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{fontWeight:700,fontSize:14,color:C.xText}}>{figure.name}</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24"><path fill={C.xBlue} d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91-1.01-1-2.52-1.27-3.91-.81-.66-1.31-1.91-2.19-3.34-2.19s-2.68.88-3.34 2.19c-1.39-.46-2.9-.2-3.91.81-1 1.01-1.27 2.52-.81 3.91-1.31.67-2.19 1.91-2.19 3.34s.88 2.67 2.19 3.34c-.46 1.39-.2 2.9.81 3.91 1.01 1 2.52 1.27 3.91.81.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.46 2.9.2 3.91-.81 1-1.01 1.27-2.52.81-3.91 1.31-.67 2.19-1.91 2.19-3.34zm-11.71 4.2L6.8 12.46l1.41-1.42 2.26 2.26 4.8-5.23 1.47 1.36-6.2 6.77z"/></svg>
+                  </div>
+                  <div style={{color:C.xMuted,fontSize:13}}>@{handle}</div>
+                </div>
+                <span style={{fontSize:18,color:C.xMuted}}>···</span>
+              </div>
+              <div style={{marginTop:10,fontSize:15,color:C.xText,lineHeight:1.55,whiteSpace:"pre-wrap"}}>
+                {text||<span style={{color:C.xMuted}}>Your post will appear here…</span>}
+              </div>
+              <div style={{marginTop:10,fontSize:13,color:C.xMuted}}>{ts}</div>
+            </div>
+          </div>
+          <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.xBorder}`,
+            display:"flex",gap:18,paddingBottom:10,flexWrap:"wrap"}}>
+            {[["💬","—","Replies"],["🔁","—","Reposts"],["♡","—","Likes"],["🔖","—","Bookmarks"]].map(([ic,ct,lb])=>(
+              <span key={lb} style={{display:"flex",gap:5,alignItems:"center",color:C.xMuted,fontSize:13}}>{ic} <strong>{ct}</strong> {lb}</span>
+            ))}
+          </div>
+        </div>
+        {replies?.length>0&&<div style={{borderTop:`1px solid ${C.xBorder}`}}>
+          {replies.map((r,i)=>{
+            const sc=SENT[r.sentiment]||SENT.neutral;
+            return<div key={i} style={{padding:"12px 14px",borderBottom:i<replies.length-1?`1px solid ${C.xBorder}`:"none"}}>
+              <div style={{display:"flex",gap:10}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:FIG_COLORS[i%FIG_COLORS.length],
+                  display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>
+                  {r.avatar||inits(r.username||"?")}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
+                    <span style={{fontWeight:700,fontSize:13,color:C.xText}}>{r.username}</span>
+                    {r.verified&&<svg width="13" height="13" viewBox="0 0 24 24"><path fill={C.xBlue} d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91-1.01-1-2.52-1.27-3.91-.81-.66-1.31-1.91-2.19-3.34-2.19s-2.68.88-3.34 2.19c-1.39-.46-2.9-.2-3.91.81-1 1.01-1.27 2.52-.81 3.91-1.31.67-2.19 1.91-2.19 3.34s.88 2.67 2.19 3.34c-.46 1.39-.2 2.9.81 3.91 1.01 1 2.52 1.27 3.91.81.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.46 2.9.2 3.91-.81 1-1.01 1.27-2.52.81-3.91 1.31-.67 2.19-1.91 2.19-3.34zm-11.71 4.2L6.8 12.46l1.41-1.42 2.26 2.26 4.8-5.23 1.47 1.36-6.2 6.77z"/></svg>}
+                    <span style={{color:C.xMuted,fontSize:12}}>{r.handle}</span>
+                    <Badge bg={sc.bg} color={sc.c}>{r.sentiment}</Badge>
+                  </div>
+                  <div style={{fontSize:13,color:C.xText,lineHeight:1.5,marginBottom:6}}>{r.content}</div>
+                  <div style={{display:"flex",gap:14,color:C.xMuted,fontSize:12}}>
+                    <span>💬 {r.replies||0}</span><span>🔁 {r.retweets||0}</span><span>♡ {r.likes||0}</span>
+                  </div>
+                </div>
+              </div>
+            </div>;
+          })}
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+function TweetSimulator({project, suggestedTweet}){
+  const [tweet,setTweet]=useState("");
+  const [replies,setReplies]=useState(null);
+  const [risk,setRisk]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [filter,setFilter]=useState("all");
+  const charLeft=280-tweet.length;
+
+  useEffect(()=>{
+    if(suggestedTweet) setTweet(suggestedTweet.slice(0,280));
+  },[suggestedTweet]);
+
+  async function simulate(){
+    if(!tweet.trim()) return;
+    setLoading(true); setReplies(null); setRisk(null);
+    try{
+      const raw=await callClaude(
+        "You simulate realistic X/Twitter public reactions. Return ONLY valid JSON.",
+        `Simulate public reactions to this post from ${project.name} (${project.profile?.role}, ${project.profile?.country}).
+
+Post: "${tweet}"
+Figure context: ${project.profile?.bio||""}
+
+Return JSON:
+{
+  "risk": "LOW|MEDIUM|HIGH|CRITICAL",
+  "replies": [{"username":"Name","handle":"@handle","avatar":"XX","verified":false,"content":"Reply max 180 chars","likes":234,"retweets":12,"replies":5,"sentiment":"positive|negative|neutral|ironic"}]
+}
+
+Generate exactly 10 diverse replies: 2-3 supporters, 2-3 critics, 1 journalist, 1 opposition, 1 neutral, 1 ironic, 1 regular person. Make it authentic to this figure's context.`
+      );
+      const p=parseJSON(raw);
+      setReplies(p.replies||[]); setRisk(p.risk||"MEDIUM");
+    }catch(e){
+      setReplies([{username:"Error",handle:"@error",avatar:"Er",verified:false,content:`Failed: ${e.message}`,likes:0,retweets:0,replies:0,sentiment:"neutral"}]);
+    }finally{ setLoading(false); }
+  }
+
+  const filtered=replies?replies.filter(r=>filter==="all"||r.sentiment===filter):[];
+  return(
+    <div style={{display:"flex",flex:1,overflow:"hidden"}}>
+      <div style={{width:320,flexShrink:0,borderRight:`1px solid ${C.border}`,
+        display:"flex",flexDirection:"column",background:C.bgCard,overflowY:"auto"}}>
+        <div style={{padding:"18px 16px 0"}}>
+          <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:C.muted,marginBottom:12}}>Compose post</div>
+          <div style={{background:C.bg,border:`1px solid ${C.borderMid}`,borderRadius:12,padding:12,marginBottom:10}}>
+            <div style={{display:"flex",gap:10,marginBottom:10}}>
+              <div style={{width:38,height:38,borderRadius:"50%",background:project.color,
+                display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:13,flexShrink:0}}>
+                {inits(project.name)}
+              </div>
+              <div>
+                <div style={{fontWeight:700,fontSize:12,color:C.text}}>{project.name}</div>
+                <div style={{fontSize:11,color:C.muted}}>@{project.profile?.handle||project.name.split(" ").join("").toLowerCase()}</div>
+              </div>
+            </div>
+            <textarea value={tweet} onChange={e=>e.target.value.length<=280&&setTweet(e.target.value)}
+              placeholder="What's happening?" rows={5}
+              style={{width:"100%",border:"none",outline:"none",background:"transparent",
+                fontSize:14,color:C.text,resize:"none",lineHeight:1.55}}/>
+            <div style={{display:"flex",justifyContent:"flex-end",paddingTop:8,borderTop:`1px solid ${C.border}`}}>
+              <span style={{fontSize:12,color:charLeft<20?C.red:C.muted}}>{charLeft}</span>
+            </div>
+          </div>
+          <button onClick={simulate} disabled={loading||!tweet.trim()} style={{width:"100%",
+            background:tweet.trim()&&!loading?"#0f1419":C.bg,
+            color:tweet.trim()&&!loading?C.white:C.muted,
+            border:`1px solid ${C.border}`,borderRadius:100,padding:"10px",fontSize:12,
+            fontWeight:700,cursor:tweet.trim()&&!loading?"pointer":"not-allowed",marginBottom:12}}>
+            {loading?"Simulating…":"Simulate reactions ↗"}
+          </button>
+          {loading&&<div style={{display:"flex",justifyContent:"center",marginBottom:12}}><Spinner/></div>}
+        </div>
+        {replies&&<div style={{padding:"0 16px 16px"}}>
+          <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:C.muted,marginBottom:8}}>Filter</div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+            {["all","positive","negative","neutral","ironic"].map(f=>(
+              <button key={f} onClick={()=>setFilter(f)} style={{padding:"3px 9px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",
+                border:`1px solid ${filter===f?C.accent:C.border}`,background:filter===f?C.accentSoft:"transparent",
+                color:filter===f?C.accentText:C.muted,textTransform:"capitalize"}}>{f}</button>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {["positive","negative","neutral","ironic"].map(s=>{
+              const cnt=replies.filter(r=>r.sentiment===s).length;
+              const sc=SENT[s];
+              return<div key={s} style={{display:"flex",alignItems:"center",gap:4}}>
+                <Badge bg={sc.bg} color={sc.c}>{cnt}</Badge>
+                <span style={{fontSize:10,color:C.muted,textTransform:"capitalize"}}>{s}</span>
+              </div>;
+            })}
+          </div>
+        </div>}
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:24,background:"#f7f9f9"}}>
+        {!replies&&!loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",
+          justifyContent:"center",height:"100%",gap:10,textAlign:"center"}}>
+          <div style={{fontSize:36,opacity:.2}}>𝕏</div>
+          <div style={{fontSize:14,fontWeight:600,color:"#334155"}}>Compose a post and simulate reactions</div>
+          <div style={{fontSize:12,color:"#64748b",maxWidth:240,lineHeight:1.6}}>The AI generates 10 realistic replies and a pre-publish risk assessment.</div>
+        </div>}
+        {(replies||tweet)&&<XMockup figure={project} text={tweet} replies={filtered} riskLevel={risk}/>}
+      </div>
+    </div>
+  );
+}
+
+// ─── TIMELINE SIMULATOR ───────────────────────────────────────────────────────
+const EV_T = {
+  media:{color:C.accent,bg:C.accentSoft,label:"Media"},
+  poll:{color:C.purple,bg:C.purpleSoft,label:"Poll"},
+  political:{color:C.amber,bg:C.amberSoft,label:"Political"},
+  crisis:{color:C.red,bg:C.redSoft,label:"Crisis"},
+  opportunity:{color:C.green,bg:C.greenSoft,label:"Opportunity"},
+  social:{color:C.orange,bg:C.orangeSoft,label:"Social"},
+  intervention:{color:"#94a3b8",bg:C.hint,label:"Intervention"},
+};
+
+function TimelineEvent({event,onAddIntervention,isLast}){
+  const [show,setShow]=useState(false);
+  const [txt,setTxt]=useState("");
+  const et=EV_T[event.type]||EV_T.media;
+  const isInt=event.type==="intervention";
+  const ic=event.impact==="positive"?C.green:event.impact==="negative"?C.red:C.muted;
+  return(
+    <div style={{display:"flex",gap:0}}>
+      <div style={{width:70,flexShrink:0,paddingTop:16,textAlign:"right",paddingRight:12}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.text}}>{event.week}</div>
+        <div style={{fontSize:9,color:C.muted}}>{event.day}</div>
+      </div>
+      <div style={{width:20,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
+        <div style={{width:isInt?14:10,height:isInt?14:10,borderRadius:"50%",background:et.color,
+          border:`2px solid ${C.bg}`,boxShadow:`0 0 0 2px ${et.color}44`,marginTop:18,flexShrink:0,zIndex:1}}/>
+        {!isLast&&<div style={{width:2,flex:1,background:C.border,marginTop:3}}/>}
+      </div>
+      <div style={{flex:1,paddingLeft:12,paddingBottom:18}}>
+        <div style={{background:isInt?C.hint:C.bgCard,border:`1px solid ${isInt?C.borderMid:C.border}`,
+          borderRadius:10,padding:"12px 14px",maxWidth:480}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:6}}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              <Badge bg={et.bg} color={et.color}>{et.label}</Badge>
+              {event.probability&&<span style={{fontSize:10,color:C.muted}}>{Math.round(event.probability*100)}% likely</span>}
+            </div>
+            {event.approvalDelta!=null&&<span style={{fontSize:11,fontWeight:700,color:ic,flexShrink:0}}>
+              {event.approvalDelta>0?"+":""}{event.approvalDelta}%
+            </span>}
+          </div>
+          <div style={{fontWeight:700,fontSize:13,color:isInt?C.muted:C.text,marginBottom:4}}>{event.title}</div>
+          <div style={{fontSize:12,color:C.muted,lineHeight:1.6}}>{event.description}</div>
+        </div>
+        {!isInt&&!isLast&&<div style={{marginTop:7}}>
+          {!show
+            ?<button onClick={()=>setShow(true)} style={{border:`1px dashed ${C.border}`,background:"transparent",
+              borderRadius:7,padding:"4px 10px",fontSize:10,fontWeight:600,color:C.muted,cursor:"pointer"}}>+ Add intervention</button>
+            :<div style={{display:"flex",gap:7,alignItems:"flex-end",maxWidth:420}}>
+              <textarea value={txt} onChange={e=>setTxt(e.target.value)} autoFocus rows={2}
+                placeholder="Describe your intervention…"
+                style={{flex:1,border:`1px solid ${C.borderMid}`,borderRadius:8,padding:"7px 9px",fontSize:11,
+                  fontFamily:"inherit",background:C.bgCard,color:C.text,resize:"none",outline:"none"}}/>
+              <button onClick={()=>{if(txt.trim()){onAddIntervention(event,txt);setTxt("");setShow(false);}}}
+                style={{background:C.accent,color:"#fff",border:"none",borderRadius:8,padding:"7px 12px",
+                  fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Insert</button>
+              <button onClick={()=>{setShow(false);setTxt("");}}
+                style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 9px",
+                  fontSize:11,color:C.muted,cursor:"pointer"}}>✕</button>
+            </div>}
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+function TimelineSimulator({project}){
+  const [scenario,setScenario]=useState("");
+  const [tf,setTf]=useState("6");
+  const [events,setEvents]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [regenFrom,setRegenFrom]=useState(null);
+
+  async function generate(existing=null,intervention=null,afterIdx=null){
+    if(!scenario.trim()) return;
+    const isRegen=!!intervention;
+    if(isRegen) setRegenFrom(afterIdx); else setLoading(true);
+    try{
+      let prompt;
+      if(!isRegen){
+        prompt=`Figure: ${project.name} (${project.profile?.role}, ${project.profile?.country})
+Campaign/situation: "${scenario}"
+Generate ${Math.ceil(parseInt(tf)*1.5)} realistic events over ${tf} weeks.
+
+Return ONLY a JSON array (no markdown):
+[{"week":"Week N","day":"Day X-Y","title":"Short title max 8 words","description":"2-3 sentences","type":"media|poll|political|crisis|opportunity|social","impact":"positive|negative|neutral","impactMagnitude":"minor|moderate|major","approvalDelta":-1.2,"probability":0.78}]`;
+      }else{
+        const past=existing.slice(0,afterIdx+1).map(e=>`${e.week}: ${e.title}`).join("\n");
+        prompt=`Figure: ${project.name}. Situation: "${scenario}"
+Past:\n${past}
+Intervention at ${existing[afterIdx].week}: "${intervention}"
+Generate ${Math.ceil(parseInt(tf)*0.8)} follow-on events. Return same JSON array format.`;
+      }
+      const raw=await callClaude("You are a political scenario planner. Return ONLY valid JSON array, no markdown.",prompt,2500);
+      const newEvs=parseJSON(raw);
+      if(!isRegen){
+        setEvents(newEvs);
+      }else{
+        const kept=existing.slice(0,afterIdx+1);
+        const intEv={week:existing[afterIdx].week,day:"—",title:intervention,
+          description:"Strategic intervention inserted. Timeline recalculated.",type:"intervention",impact:"neutral",probability:1};
+        setEvents([...kept,intEv,...newEvs]);
+      }
+    }catch(e){ console.error(e); }
+    finally{ setLoading(false); setRegenFrom(null); }
+  }
+
+  return(
+    <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+      <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px",marginBottom:18}}>
+        <div style={{fontSize:13,fontWeight:600,color:C.text,marginBottom:10}}>Campaign or situation</div>
+        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+          <textarea value={scenario} onChange={e=>setScenario(e.target.value)}
+            placeholder={`Describe the campaign for ${project.name}. E.g. "Re-election campaign focused on economic reform"`}
+            rows={3} style={{flex:1,minWidth:260,border:`1px solid ${C.borderMid}`,borderRadius:9,
+              padding:"9px 11px",fontSize:13,fontFamily:"inherit",background:C.bg,color:C.text,resize:"none",outline:"none"}}/>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <select value={tf} onChange={e=>setTf(e.target.value)} style={{border:`1px solid ${C.border}`,
+              borderRadius:8,padding:"7px 10px",fontSize:12,background:C.bgCard,color:C.text,cursor:"pointer",outline:"none"}}>
+              <option value="4">4 weeks</option><option value="6">6 weeks</option>
+              <option value="8">8 weeks</option><option value="12">12 weeks</option>
+            </select>
+            <button onClick={()=>generate()} disabled={loading||!scenario.trim()} style={{
+              background:scenario.trim()&&!loading?C.accent:C.bg,
+              color:scenario.trim()&&!loading?C.white:C.muted,
+              border:`1px solid ${scenario.trim()&&!loading?C.accent:C.border}`,
+              borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:700,
+              cursor:scenario.trim()&&!loading?"pointer":"not-allowed",whiteSpace:"nowrap"}}>
+              {loading?"Generating…":"Generate ↗"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {events&&<>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:C.text}}>Projected timeline · {project.name}</div>
+            <div style={{fontSize:11,color:C.muted}}>{events.length} events · Add interventions to shift the trajectory</div>
+          </div>
+          <button onClick={()=>generate()} style={{background:C.bg,border:`1px solid ${C.border}`,
+            borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:600,color:C.muted,cursor:"pointer"}}>↺ Regenerate</button>
+        </div>
+        <div style={{display:"flex",flexDirection:"column"}}>
+          {events.map((ev,i)=>(
+            <div key={i} style={{opacity:regenFrom!=null&&i>regenFrom?0.35:1,transition:"opacity .3s"}}>
+              <TimelineEvent event={ev} onAddIntervention={(e,t)=>{const idx=events.indexOf(e);generate(events,t,idx);}} isLast={i===events.length-1}/>
+            </div>
+          ))}
+        </div>
+        {regenFrom!=null&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+          padding:"16px",color:C.muted,fontSize:12}}><Spinner size={4}/>Recalculating trajectory…</div>}
+      </>}
+
+      {!events&&!loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",
+        justifyContent:"center",padding:"60px 0",gap:10,color:C.muted,textAlign:"center"}}>
+        <div style={{fontSize:28,opacity:.2}}>⟳</div>
+        <div style={{fontSize:14,fontWeight:600}}>Describe a campaign or situation</div>
+        <div style={{fontSize:12,maxWidth:300,lineHeight:1.6}}>Generate a projected event timeline. Add interventions to see how the trajectory shifts.</div>
+      </div>}
+    </div>
+  );
+}
+
+// ─── CHAT PANEL ───────────────────────────────────────────────────────────────
+function ChatPanel({project, onRouteSelected}){
+  const [messages,setMessages]=useState([]);
+  const [input,setInput]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [showMention,setShowMention]=useState(false);
+  const [mentionQ,setMentionQ]=useState("");
+  const [mentionIdx,setMentionIdx]=useState(0);
+  const bottomRef=useRef(null);
+  const inputRef=useRef(null);
+
+  const AGENTS=[
+    {id:"strategist",label:"Strategist",emoji:"◈",desc:"Full strategic briefing"},
+    {id:"risk",label:"Risk Analyst",emoji:"◉",desc:"Risk assessment"},
+    {id:"journalist",label:"Press",emoji:"🗞️",desc:"Media angle"},
+    {id:"opposition",label:"Opposition",emoji:"⚡",desc:"Opposition view"},
+    {id:"ally",label:"Ally",emoji:"🤝",desc:"Ally's perspective"},
+    {id:"analyst",label:"Options",emoji:"🧠",desc:"Strategic options"},
+    {id:project.name.split(" ")[0].toLowerCase(),label:project.name.split(" ")[0],emoji:"👤",desc:"As the figure"},
+  ];
+  const filtered=mentionQ?AGENTS.filter(a=>a.label.toLowerCase().includes(mentionQ.toLowerCase())):AGENTS;
+
+  useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages,loading]);
+
+  function onInput(e){
+    const v=e.target.value; setInput(v);
+    const at=v.lastIndexOf("@");
+    if(at>=0&&!v.slice(at+1).includes(" ")){ setShowMention(true); setMentionQ(v.slice(at+1)); setMentionIdx(0); }
+    else setShowMention(false);
+  }
+
+  function insertMention(a){
+    const at=input.lastIndexOf("@");
+    setInput(input.slice(0,at)+"@"+a.label+" ");
+    setShowMention(false); inputRef.current?.focus();
+  }
+
+  function onKeyDown(e){
+    if(showMention){
+      if(e.key==="ArrowDown"){e.preventDefault();setMentionIdx(i=>Math.min(i+1,filtered.length-1));}
+      if(e.key==="ArrowUp"){e.preventDefault();setMentionIdx(i=>Math.max(i-1,0));}
+      if(e.key==="Enter"&&filtered.length>0){e.preventDefault();insertMention(filtered[mentionIdx]);return;}
+      if(e.key==="Escape") setShowMention(false);
+    } else if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); }
+  }
+
+  async function sendCrisis(situation){
+    const pid=uid();
+    setMessages(p=>[...p,{role:"assistant",id:pid,content:"⚡ Conectando con el pipeline de análisis...",type:"progress"}]);
+    let finalPayload=null;
+    try{
+      const res=await fetch(`${BACKEND_URL}/analyze/stream`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({situation})
+      });
+      if(!res.ok) throw new Error(`Backend error: ${res.status}`);
+      const reader=res.body.getReader();
+      const decoder=new TextDecoder();
+      let buf="";
+      while(true){
+        const {done,value}=await reader.read();
+        if(done) break;
+        buf+=decoder.decode(value,{stream:true});
+        const lines=buf.split("\n"); buf=lines.pop();
+        for(const line of lines){
+          if(!line.startsWith("data: ")) continue;
+          const raw=line.slice(6).trim();
+          if(raw==="[DONE]") break;
+          try{
+            const ev=JSON.parse(raw);
+            const icon=ev.status==="error"?"❌":ev.status==="done"?"✅":"⏳";
+            setMessages(p=>p.map(m=>m.id===pid?{...m,content:`${icon} Paso ${ev.step}/4 — ${ev.message}`}:m));
+            if(ev.status==="done"&&ev.step===4&&ev.payload) finalPayload=ev.payload;
+            if(ev.status==="error") throw new Error(ev.message);
+          }catch(e){ if(e.message.startsWith("Backend")) throw e; }
+        }
+      }
+      if(finalPayload?.web_strategy_payload){
+        const routes=finalPayload.web_strategy_payload.routes||[];
+        const verdict=finalPayload.web_strategy_payload.master_verdict||{};
+        setMessages(p=>p.map(m=>m.id===pid?{...m,type:"routes",routes,payload:finalPayload,
+          content:verdict.executive_summary||"Análisis completo. Elegí una ruta para ver qué hacer."}:m));
+      } else {
+        setMessages(p=>p.map(m=>m.id===pid?{...m,content:"⚠️ El pipeline no devolvió rutas. Verificá que el backend esté corriendo en localhost:8000."}:m));
+      }
+    }catch(e){
+      setMessages(p=>p.map(m=>m.id===pid?{...m,content:`❌ Error: ${e.message}`,error:true}:m));
+    }finally{ setLoading(false); }
+  }
+
+  async function send(){
+    if(!input.trim()||loading) return;
+    const msg={role:"user",content:input,id:uid()};
+    setMessages(p=>[...p,msg]); const text=input; setInput(""); setLoading(true); setShowMention(false);
+
+    if(isCrisisInput(text)){
+      await sendCrisis(text);
+      return;
+    }
+
+    try{
+      const hist=messages.map(m=>({role:m.role,content:m.content}));
+      hist.push({role:"user",content:text});
+      const sys=`You are Foresight, an AI political intelligence assistant advising on: ${project.name} (${project.profile?.role}, ${project.profile?.country}).
+
+Profile: ${project.profile?.bio||""}
+Approval: ~${project.dashboard?.approvalRating}% | Risk: ${project.dashboard?.risk||"MEDIUM"} | Narratives: ${(project.dashboard?.narratives||[]).join(", ")}
+
+@Strategist → full strategic briefing with messaging pillars and tactical roadmap
+@RiskAnalyst → structured risk assessment (LOW/MEDIUM/HIGH/CRITICAL) with PROCEED/MODIFY/ABORT verdict
+@Press → journalist perspective, what angles media will pursue
+@Opposition → opposition's attack vectors and messaging
+@Ally → how an ally would react and what they'd advise privately
+@Options → 3 concrete strategic options with estimated risk per option
+@${project.name.split(" ")[0]} → roleplay as the figure, respond in first person
+
+If the user describes a post, strategy, or action: assess who reacts, how public opinion shifts, project 7-day trajectory, and give a verdict.
+Be sharp, specific, and concise. Respond in the same language the user writes in.`;
+      const raw=await callClaude(sys,text,2000);
+      setMessages(p=>[...p,{role:"assistant",content:raw,id:uid()}]);
+    }catch(e){
+      setMessages(p=>[...p,{role:"assistant",content:`Error: ${e.message}`,id:uid(),error:true}]);
+    }finally{ setLoading(false); }
+  }
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+        <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:C.muted,marginBottom:3}}>AI Consultant</div>
+        <div style={{fontSize:10,color:C.hint}}>Type <span style={{color:C.accentText,fontFamily:"monospace"}}>@</span> to tag an agent</div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"12px 12px 6px",display:"flex",flexDirection:"column",gap:10}}>
+        {messages.length===0&&!loading&&(
+          <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+            textAlign:"center",padding:"28px 12px",color:C.hint}}>
+            <div style={{width:38,height:38,borderRadius:10,background:C.accentSoft,display:"flex",
+              alignItems:"center",justifyContent:"center",fontSize:17,marginBottom:10}}>◈</div>
+            <div style={{fontSize:12,fontWeight:600,color:C.muted,marginBottom:5}}>Describí tu situación</div>
+            <div style={{fontSize:11,color:C.hint,lineHeight:1.65,maxWidth:220}}>
+              Escribí en primera persona qué hiciste o declaraste. Ejemplo:<br/>
+              <span style={{color:C.accentText,fontStyle:"italic"}}>"Soy el CEO de X y acabo de anunciar 500 despidos"</span><br/><br/>
+              El backend genera las 3 rutas posibles. O usá <span style={{color:C.accentText}}>@Strategist</span> para un briefing rápido.
+            </div>
+          </div>
+        )}
+        {messages.map(m=>{
+          const isU=m.role==="user";
+          if(m.type==="routes"){
+            const routeColors={AMPLIFICACION:C.red,ABSORCION:C.amber,INVERSION:C.green};
+            const routeIcons={AMPLIFICACION:"🔴",ABSORCION:"🟡",INVERSION:"🟢"};
+            return<div key={m.id} style={{display:"flex",flexDirection:"column",gap:3,animation:"slideUp .25s ease"}}>
+              <span style={{fontSize:9,fontWeight:600,color:C.muted,marginLeft:2}}>Foresight AI — Pipeline completo</span>
+              <div style={{padding:"10px 11px",borderRadius:9,fontSize:11,lineHeight:1.7,
+                background:C.bgCard,border:`1px solid ${C.border}`,color:C.text}}>
+                <div style={{marginBottom:10,fontSize:11,color:C.muted,lineHeight:1.6}}>{m.content}</div>
+                <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:C.hint,marginBottom:6}}>Elegí una ruta</div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {(m.routes||[]).map(route=>{
+                    const rc=routeColors[route.id]||C.muted;
+                    const ri=routeIcons[route.id]||"◈";
+                    return<button key={route.id} onClick={()=>{
+                      if(onRouteSelected) onRouteSelected(route,m.payload);
+                      setMessages(p=>[...p,{role:"user",content:`Elegí ruta ${route.id}`,id:uid()},
+                        {role:"assistant",id:uid(),content:`✅ Ruta ${route.id} activada.\n\n📋 Qué hacer: ${route.strategy?.recommended_action||""}\n\n💬 Mensaje clave: "${route.strategy?.key_message||""}"\n\n⏱ T+1h: ${route.timeline?.[0]?.event||""}\nT+6h: ${route.timeline?.[1]?.event||""}\nT+24h: ${route.timeline?.[2]?.event||""}`}]);
+                    }} style={{background:`${rc}0d`,border:`1px solid ${rc}44`,borderRadius:9,
+                      padding:"9px 11px",cursor:"pointer",textAlign:"left",width:"100%"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                        <span style={{fontSize:11,fontWeight:700,color:rc}}>{ri} {route.id}</span>
+                        <span style={{fontSize:10,color:C.muted,background:C.bg,padding:"1px 6px",borderRadius:100}}>{route.probability}%</span>
+                      </div>
+                      <div style={{fontSize:10,color:C.muted,lineHeight:1.5}}>{route.description}</div>
+                    </button>;
+                  })}
+                </div>
+              </div>
+            </div>;
+          }
+          return<div key={m.id} style={{display:"flex",flexDirection:"column",gap:3,animation:"slideUp .25s ease"}}>
+            <span style={{fontSize:9,fontWeight:600,color:isU?C.accentText:C.muted,marginLeft:2}}>
+              {isU?"You":"Foresight AI"}
+            </span>
+            <div style={{padding:"9px 11px",borderRadius:9,fontSize:11.5,lineHeight:1.7,
+              background:isU?C.accentSoft:C.bgCard,border:`1px solid ${isU?C.accent+"33":C.border}`,
+              whiteSpace:"pre-wrap",color:m.error?C.red:C.text,
+              fontFamily:isU?"inherit":"'Courier New',monospace"}}>
+              {m.content}
+            </div>
+          </div>;
+        })}
+        {loading&&<div style={{display:"flex",flexDirection:"column",gap:3}}>
+          <span style={{fontSize:9,fontWeight:600,color:C.muted,marginLeft:2}}>Foresight AI</span>
+          <div style={{padding:"11px",borderRadius:9,border:`1px solid ${C.border}`,background:C.bgCard}}>
+            <Spinner/>
+          </div>
+        </div>}
+        <div ref={bottomRef}/>
+      </div>
+
+      <div style={{borderTop:`1px solid ${C.border}`,padding:"8px 10px",flexShrink:0,position:"relative"}}>
+        {showMention&&filtered.length>0&&<div style={{position:"absolute",bottom:"100%",left:10,right:10,
+          background:C.bgCard,border:`1px solid ${C.borderMid}`,borderRadius:10,overflow:"hidden",
+          marginBottom:4,boxShadow:"0 -4px 20px rgba(0,0,0,0.5)"}}>
+          {filtered.map((a,i)=>(
+            <div key={a.id} onMouseDown={()=>insertMention(a)}
+              style={{padding:"7px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:7,
+                background:i===mentionIdx?C.accentSoft:"transparent"}}>
+              <span style={{fontSize:13}}>{a.emoji}</span>
+              <div>
+                <span style={{fontSize:11,fontWeight:600,color:i===mentionIdx?C.accentText:C.text}}>@{a.label}</span>
+                <span style={{fontSize:9,color:C.muted,marginLeft:6}}>{a.desc}</span>
+              </div>
+            </div>
+          ))}
+        </div>}
+        <div style={{display:"flex",gap:6}}>
+          <textarea ref={inputRef} value={input} onChange={onInput} onKeyDown={onKeyDown}
+            placeholder={`Message… (@ to tag agents)`} rows={2}
+            style={{flex:1,border:`1px solid ${C.borderMid}`,borderRadius:8,padding:"7px 9px",
+              fontSize:11.5,fontFamily:"inherit",background:C.bg,color:C.text,resize:"none",outline:"none"}}/>
+          <button onClick={send} disabled={loading||!input.trim()} style={{flexShrink:0,
+            background:input.trim()&&!loading?C.accent:C.bg,
+            color:input.trim()&&!loading?C.white:C.muted,
+            border:`1px solid ${input.trim()&&!loading?C.accent:C.border}`,
+            borderRadius:8,padding:"0 12px",fontSize:11,fontWeight:700,
+            cursor:loading||!input.trim()?"not-allowed":"pointer"}}>Send</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PROJECT VIEW ─────────────────────────────────────────────────────────────
+function ProjectView({projectId,projects,onUpdateProjects}){
+  const [view,setView]=useState("dashboard");
+  const [refreshing,setRefreshing]=useState(false);
+  const [selectedRoute,setSelectedRoute]=useState(null);
+  const [suggestedTweet,setSuggestedTweet]=useState("");
+  const project=projects.find(p=>p.id===projectId);
+  if(!project) return null;
+
+  function handleRouteSelected(route, fullPayload){
+    setSelectedRoute(route);
+    if(route.strategy?.key_message) setSuggestedTweet(route.strategy.key_message.slice(0,280));
+    const riskMap={AMPLIFICACION:"CRITICAL",ABSORCION:"MEDIUM",INVERSION:"LOW"};
+    const updated=projects.map(p=>{
+      if(p.id!==projectId) return p;
+      return{...p,dashboard:{...p.dashboard,risk:riskMap[route.id]||p.dashboard.risk,
+        activeRoute:route,narratives:[`Ruta ${route.id} activa`,...(p.dashboard.narratives||[]).slice(0,3)]}};
+    });
+    onUpdateProjects(updated);
+    setView("dashboard");
+  }
+
+  async function refresh(){
+    setRefreshing(true);
+    try{
+      const raw=await callClaude(
+        "You are a political intelligence analyst. Return ONLY valid JSON.",
+        `Research the latest situation of ${project.name} (${project.profile?.role}, ${project.profile?.country}).
+
+Return JSON:
+{
+  "approvalRating": <realistic 0-100>,
+  "weeklyChange": <realistic -5 to 5>,
+  "risk": "LOW|MEDIUM|HIGH|CRITICAL",
+  "sentiment": "Positive|Mixed|Negative",
+  "recentEvents": [{"date":"Month Year","text":"Brief description","s":"positive|negative|neutral"}],
+  "narratives": ["Narrative 1","Narrative 2","Narrative 3","Narrative 4"]
+}`
+      );
+      const parsed=parseJSON(raw);
+      const updated=projects.map(p=>{
+        if(p.id!==projectId) return p;
+        const nc=[...(p.dashboard.chartData||[]).slice(-11),{month:"Now",v:parsed.approvalRating||p.dashboard.approvalRating}];
+        return{...p,dashboard:{...p.dashboard,...parsed,chartData:nc,
+          lastUpdated:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}};
+      });
+      onUpdateProjects(updated);
+    }catch(e){ console.error(e); }
+    finally{ setRefreshing(false); }
+  }
+
+  const TABS=[
+    {id:"dashboard",label:"Dashboard",icon:"◈"},
+    {id:"tweet",label:"Tweet Sim",icon:"𝕏"},
+    {id:"timeline",label:"Timeline",icon:"⟳"},
+  ];
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{height:46,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",
+        padding:"0 14px",gap:2,flexShrink:0}}>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setView(t.id)} style={{border:"none",borderRadius:7,
+            padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer",
+            background:view===t.id?C.accentSoft:"transparent",
+            color:view===t.id?C.accentText:C.muted,
+            display:"flex",alignItems:"center",gap:5,transition:"all .15s"}}>
+            <span>{t.icon}</span>{t.label}
+          </button>
+        ))}
+      </div>
+      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+        <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          {view==="dashboard"&&<Dashboard project={project} onRefresh={refresh} refreshing={refreshing} selectedRoute={selectedRoute}/>}
+          {view==="tweet"&&<TweetSimulator project={project} suggestedTweet={suggestedTweet}/>}
+          {view==="timeline"&&<TimelineSimulator project={project}/>}
+        </div>
+        <div style={{width:320,flexShrink:0,borderLeft:`1px solid ${C.border}`,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <ChatPanel project={project} onRouteSelected={handleRouteSelected}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SIDEBAR ─────────────────────────────────────────────────────────────────
+function Sidebar({projects,activeId,onSelect,onNew,collapsed,onToggle}){
+  return(
+    <div style={{width:collapsed?52:210,flexShrink:0,borderRight:`1px solid ${C.border}`,
+      display:"flex",flexDirection:"column",background:C.bgCard,transition:"width .2s ease",overflow:"hidden"}}>
+      <div style={{height:56,display:"flex",alignItems:"center",
+        padding:collapsed?"0 13px":"0 14px",gap:8,borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+        <div style={{width:26,height:26,borderRadius:7,
+          background:`linear-gradient(135deg,${C.accent},${C.purple})`,
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0}}>🔭</div>
+        {!collapsed&&<>
+          <span style={{fontSize:14,fontWeight:800,color:C.text,letterSpacing:"-0.02em"}}>Foresight</span>
+          <button onClick={onToggle} style={{marginLeft:"auto",background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:14,padding:2}}>‹</button>
+        </>}
+        {collapsed&&<button onClick={onToggle} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:14,padding:2}}>›</button>}
+      </div>
+
+      <div style={{padding:collapsed?"8px 7px 0":"8px 8px 0",flexShrink:0}}>
+        <button onClick={onNew} title="New project" style={{width:"100%",background:C.accentSoft,
+          border:`1px solid ${C.accent}33`,borderRadius:8,
+          padding:collapsed?"9px 0":"7px 9px",fontSize:11,fontWeight:600,
+          color:C.accentText,cursor:"pointer",display:"flex",alignItems:"center",
+          justifyContent:collapsed?"center":"flex-start",gap:6}}>
+          <span style={{fontSize:15}}>+</span>{!collapsed&&"New project"}
+        </button>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:collapsed?"6px 6px":"6px 6px"}}>
+        {!collapsed&&projects.length>0&&<div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",
+          letterSpacing:"0.1em",color:C.hint,padding:"6px 8px 4px"}}>Projects</div>}
+        {projects.map(p=>(
+          <button key={p.id} onClick={()=>onSelect(p.id)} title={p.name}
+            style={{width:"100%",background:p.id===activeId?C.accentSoft:"transparent",
+              border:`1px solid ${p.id===activeId?C.accent+"44":"transparent"}`,
+              borderRadius:8,padding:collapsed?"9px 0":"7px 9px",cursor:"pointer",
+              display:"flex",alignItems:"center",gap:8,marginBottom:2,
+              justifyContent:collapsed?"center":"flex-start",transition:"all .15s",
+              boxShadow:p.id===activeId?`inset 3px 0 0 ${C.accent}`:"none"}}>
+            <div style={{width:26,height:26,borderRadius:"50%",background:p.color,flexShrink:0,
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff"}}>
+              {inits(p.name)}
+            </div>
+            {!collapsed&&<div style={{textAlign:"left",minWidth:0,flex:1}}>
+              <div style={{fontSize:11,fontWeight:600,color:p.id===activeId?C.accentText:C.text,
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+              <div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {p.profile?.role?.split("·")[0]?.trim()||p.profile?.country||""}
+              </div>
+            </div>}
+          </button>
+        ))}
+        {projects.length===0&&!collapsed&&<div style={{padding:"14px 8px",fontSize:11,color:C.hint,textAlign:"center",lineHeight:1.7}}>
+          No projects yet.<br/>Create your first one.
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── EMPTY STATE ─────────────────────────────────────────────────────────────
+function EmptyState({onNew}){
+  return(
+    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",
+      justifyContent:"center",padding:40,textAlign:"center"}}>
+      <div style={{width:64,height:64,borderRadius:18,
+        background:`linear-gradient(135deg,${C.accent}22,${C.purple}22)`,
+        border:`1px solid ${C.accent}33`,display:"flex",alignItems:"center",
+        justifyContent:"center",fontSize:28,marginBottom:20}}>🔭</div>
+      <h2 style={{fontSize:20,fontWeight:800,color:C.text,marginBottom:8,letterSpacing:"-0.02em"}}>Start tracking</h2>
+      <p style={{fontSize:13,color:C.muted,lineHeight:1.75,maxWidth:320,marginBottom:28}}>
+        Add a public figure — politician, executive, public personality. Foresight researches who they are and builds a full intelligence profile.
+      </p>
+      <button onClick={onNew} style={{background:C.accent,color:C.white,border:"none",borderRadius:10,
+        padding:"13px 32px",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:"-0.01em",
+        boxShadow:`0 0 32px ${C.accent}55, 0 2px 8px rgba(0,0,0,0.4)`}}>Create first project →</button>
+    </div>
+  );
+}
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
+function App(){
+  const [projects,setProjects]=useState(()=>STORE.load());
+  const [activeId,setActiveId]=useState(()=>{ const p=STORE.load(); return p.length?p[0].id:null; });
+  const [showCreator,setShowCreator]=useState(false);
+  const [collapsed,setCollapsed]=useState(false);
+  const apiOk=window.ANTHROPIC_API_KEY&&!window.ANTHROPIC_API_KEY.includes("PASTE");
+
+  function updateProjects(updated){ setProjects(updated); STORE.save(updated); }
+
+  function handleCreated(id){
+    const updated=STORE.load(); setProjects(updated); setActiveId(id); setShowCreator(false);
+  }
+
+  return(
+    <div style={{height:"100vh",display:"flex",flexDirection:"column",background:C.bg}}>
+      {/* Top bar */}
+      <div style={{height:56,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",
+        padding:"0 20px",gap:12,flexShrink:0,background:C.bgCard,
+        boxShadow:`0 1px 0 ${C.accent}22`}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:26,height:26,borderRadius:7,background:`linear-gradient(135deg,${C.accent},${C.purple})`,
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>🔭</div>
+          <span style={{fontSize:15,fontWeight:800,color:C.text,letterSpacing:"-0.02em"}}>Foresight</span>
+          <span style={{fontSize:11,color:C.muted,fontWeight:400}}>— crisis intelligence</span>
+        </div>
+        {activeId&&projects.find(p=>p.id===activeId)&&(()=>{
+          const p=projects.find(pr=>pr.id===activeId);
+          return<>
+            <div style={{width:1,height:18,background:C.border}}/>
+            <div style={{width:20,height:20,borderRadius:"50%",background:p.color,
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,color:"#fff"}}>
+              {inits(p.name)}
+            </div>
+            <span style={{fontSize:13,fontWeight:600,color:C.text}}>{p.name}</span>
+            {p.profile?.role&&<span style={{fontSize:11,color:C.muted}}>{p.profile.role}</span>}
+          </>;
+        })()}
+        <div style={{flex:1}}/>
+        <div style={{display:"flex",alignItems:"center",gap:5}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:apiOk?C.green:C.red}}/>
+          <span style={{fontSize:10,color:C.muted}}>{apiOk?"API connected":"Configure config.js"}</span>
+        </div>
+      </div>
+
+      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+        <Sidebar projects={projects} activeId={activeId} onSelect={setActiveId}
+          onNew={()=>setShowCreator(true)} collapsed={collapsed} onToggle={()=>setCollapsed(v=>!v)}/>
+        <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          {activeId&&projects.find(p=>p.id===activeId)
+            ?<ProjectView projectId={activeId} projects={projects} onUpdateProjects={updateProjects}/>
+            :<EmptyState onNew={()=>setShowCreator(true)}/>}
+        </div>
+      </div>
+
+      {showCreator&&<ProjectCreator onDone={handleCreated} onClose={()=>setShowCreator(false)}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

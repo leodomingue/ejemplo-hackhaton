@@ -66,9 +66,10 @@ async def parse_situation(situation: str) -> dict[str, Any]:
     system = prompts["orchestrator"]
 
     user_msg = (
-        f"Extraé el objeto de dispatch del siguiente evento en lenguaje natural. "
-        f"Devolvé ÚNICAMENTE el JSON con los campos subject, action, date, context. "
-        f"Nada más.\n\nEvento: {situation}"
+        f"El usuario habla en primera persona — ES el político o CEO protagonista de la situación. "
+        f"Extraé el objeto de dispatch. El campo 'subject' es quién es el usuario (su nombre o rol). "
+        f"Devolvé ÚNICAMENTE el JSON con los campos subject, action, date, context. Nada más.\n\n"
+        f"Input del usuario: {situation}"
     )
 
     response = await call_agent(system, user_msg, max_tokens=1000, model=MODEL_FAST)

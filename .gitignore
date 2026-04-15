@@ -1,6 +1,7 @@
-# Environment
+# Environment & secrets
 .env
 *.env
+Crisis Simulator/config.js
 
 # Python
 __pycache__/
