@@ -1,0 +1,494 @@
+{
+  "version": "1.0",
+  "description": "Tablas de activación para Crisis Simulator. Cada tabla define qué perfiles se activan ante una combinación de protagonista + tipo de crisis, con qué intensidad, en qué orden de salida y con qué dirección. Estas tablas alimentan al orquestador para que sepa qué subagentes llamar en cada turno.",
+  "intensity_scale": {
+    "alta": "El agente sale con fuerza, tono máximo, impacto alto en score de reputación",
+    "media": "El agente sale con tono moderado, impacto medio",
+    "baja": "El agente aparece de fondo, impacto bajo o nulo",
+    "ausente": "El agente no se activa en este escenario"
+  },
+  "global_rules": {
+    "infobae_trigger": "Infobae es la señal de largada general. Antes de que publique, los perfiles políticos y periodísticos esperan. Después de Infobae todos tienen permiso para opinar.",
+    "human_story_multiplier": "Si aparece un Trabajador Afectado con nombre, antigüedad y familia, la intensidad de TODOS los agentes activos sube un nivel.",
+    "victims_rule": "Si hay víctimas humanas confirmadas, los perfiles de defensa (defensor_industrial, liberal_clasico, ironico_liberal) se paralizan o bajan al mínimo.",
+    "government_color": "El color político del gobierno en ejercicio es una variable crítica que el orquestador debe leer antes de activar los agentes 02, 04, 06C, 06D, 08.",
+    "troll_direction": "El Troll Anónimo amplifica la narrativa del agente dominante del momento. Su dirección la define el orquestador según contexto.",
+    "cenital_impact": "La publicación de Cenital/Chequeado reactiva a todos los agentes con nueva información. Si confirma algo malo: crisis irreversible. Si desmiente: la empresa tiene su mejor argumento."
+  },
+  "tables": [
+    {
+      "id": "T01",
+      "protagonist": "Industrial / Manufacturero",
+      "protagonist_examples": ["Techint", "Ternium", "Arcor", "Tenaris"],
+      "crisis_type": "conflicto_laboral_despidos",
+      "crisis_label": "Conflicto laboral / despidos masivos",
+      "activation_order": [
+        { "profile_id": "07", "intensity": "alta", "order": 1, "direction": "victim", "trigger": "Se entera del despido, publica desde el dolor" },
+        { "profile_id": "09", "intensity": "alta", "order": 2, "direction": "ambos_lados", "trigger": "Apenas hay trend" },
+        { "profile_id": "06D", "intensity": "alta", "order": 3, "direction": "ataque", "trigger": "Primer tweet viral" },
+        { "profile_id": "04", "intensity": "media", "order": 4, "direction": "defensa_si_hay_sindicato", "trigger": "Declaración sindical" },
+        { "profile_id": "08", "intensity": "alta", "order": 4, "direction": "confrontacion", "trigger": "Confirmación oficial" },
+        { "profile_id": "06B", "intensity": "alta", "order": 5, "direction": "neutro_amplificador", "trigger": "Declaración sindical" },
+        { "profile_id": "05B", "intensity": "alta", "order": 5, "direction": "ataque", "trigger": "Primer dato duro" },
+        { "profile_id": "10", "intensity": "alta", "order": 6, "direction": "oportunismo", "trigger": "Infobae publica" },
+        { "profile_id": "02", "intensity": "media", "order": 7, "direction": "ambiguo", "trigger": "Crisis toma temperatura" },
+        { "profile_id": "05A", "intensity": "media", "order": 7, "direction": "defensa_indirecta", "trigger": "Declaración sindical exagerada" },
+        { "profile_id": "01", "intensity": "media", "order": 8, "direction": "defensa_por_encuadre", "trigger": "Crisis instalada" },
+        { "profile_id": "06C", "intensity": "media", "order": 8, "direction": "ataque_narrativo", "trigger": "Crisis instalada" },
+        { "profile_id": "03", "intensity": "media", "order": 9, "direction": "defensa_tecnica", "trigger": "Después de Infobae" },
+        { "profile_id": "06A", "intensity": "media", "order": 10, "direction": "neutro_favorable", "trigger": "Crisis consolidada" },
+        { "profile_id": "06E", "intensity": "baja", "order": 11, "direction": "verificacion", "trigger": "6-12hs después del inicio" }
+      ],
+      "key_rules": [
+        "Si el sindicato sale fuerte y rápido, el Libertario Mileísta se activa en defensa de la empresa. Si sale moderado, el Libertario baja la intensidad.",
+        "Infobae es la señal de largada general para los perfiles políticos y periodísticos.",
+        "Si aparece historia humana concreta con nombre y antigüedad, la intensidad de todos los perfiles sube un nivel."
+      ],
+      "temporal_arc": {
+        "hora_0": "Se filtra la noticia / primer tweet del trabajador",
+        "hora_0_1": "Trolls, El Destape, primeras reacciones",
+        "hora_1_2": "Sindicato declara, Infobae publica",
+        "hora_2_4": "Político oportunista, Irónicos, Libertario",
+        "hora_4_8": "La Nación, Liberal Clásico, Página/12",
+        "hora_8_12": "Defensor Industrial intenta encuadrar",
+        "hora_12_24": "Cenital/Chequeado publica verificación. Crisis se estabiliza o escala según respuesta de la empresa."
+      }
+    },
+    {
+      "id": "T02",
+      "protagonist": "Industrial / Manufacturero",
+      "protagonist_examples": ["Techint", "Ternium", "Arcor"],
+      "crisis_type": "acusacion_evasion_fiscal",
+      "crisis_label": "Acusación de evasión fiscal",
+      "activation_order": [
+        { "profile_id": "06D", "intensity": "alta", "order": 1, "direction": "ataque", "trigger": "Filtración del documento" },
+        { "profile_id": "09", "intensity": "alta", "order": 2, "direction": "ataque_dominante", "trigger": "Primer tweet viral" },
+        { "profile_id": "05B", "intensity": "alta", "order": 2, "direction": "ataque", "trigger": "Primer dato duro" },
+        { "profile_id": "06B", "intensity": "alta", "order": 3, "direction": "neutro_amplificador", "trigger": "Denuncia confirmada" },
+        { "profile_id": "10", "intensity": "alta", "order": 4, "direction": "oportunismo", "trigger": "Infobae publica" },
+        { "profile_id": "06C", "intensity": "alta", "order": 4, "direction": "ataque_narrativo", "trigger": "Denuncia confirmada" },
+        { "profile_id": "04", "intensity": "alta", "order": 5, "direction": "ataque_si_vinculo_estatal", "trigger": "Aparece contrato con Estado" },
+        { "profile_id": "02", "intensity": "media", "order": 5, "direction": "ambiguo_bajo_volumen", "trigger": "Crisis instalada" },
+        { "profile_id": "03", "intensity": "media", "order": 6, "direction": "defensa_tecnica_sistema", "trigger": "Crisis instalada" },
+        { "profile_id": "05A", "intensity": "media", "order": 6, "direction": "silencio_o_esquiva", "trigger": "Dato incómodo" },
+        { "profile_id": "06A", "intensity": "media", "order": 7, "direction": "neutro_contexto_atenuante", "trigger": "Crisis consolidada" },
+        { "profile_id": "01", "intensity": "media", "order": 7, "direction": "defensa_encuadre_sistemico", "trigger": "Crisis consolidada" },
+        { "profile_id": "08", "intensity": "baja", "order": 8, "direction": "oportunista_secundario", "trigger": "Si hay ángulo laboral" },
+        { "profile_id": "07", "intensity": "baja", "order": 9, "direction": "ausente_o_confuso", "trigger": "No hay despidos directos" },
+        { "profile_id": "06E", "intensity": "alta", "order": 10, "direction": "verificacion_definitoria", "trigger": "12-24hs después" }
+      ],
+      "key_rules": [
+        "Si la evasión involucra contratos con el Estado, el Libertario ataca a la empresa con la misma ferocidad que el kirchnerismo.",
+        "El Opositor con contradicciones baja el volumen si su espacio tuvo vínculos con la empresa en gobiernos anteriores.",
+        "Cenital/Chequeado es el agente más importante. Si confirma los números, la crisis es irreversible. Si los desmiente, la empresa tiene su mejor argumento."
+      ],
+      "temporal_arc": {
+        "hora_0": "Filtración del documento / denuncia judicial",
+        "hora_0_2": "El Destape, Trolls, Irónico Izquierda",
+        "hora_2_4": "Infobae publica, Página/12 encuadra",
+        "hora_4_6": "Político Oportunista, Libertario si hay ángulo estatal",
+        "hora_6_12": "La Nación, Liberal Clásico, Defensor Industrial",
+        "hora_12_24": "Cenital verifica. Su veredicto define si la crisis escala o se cierra."
+      }
+    },
+    {
+      "id": "T03",
+      "protagonist": "Industrial / Manufacturero",
+      "crisis_type": "accidente_seguridad",
+      "crisis_label": "Accidente o crisis de seguridad",
+      "activation_order": [
+        { "profile_id": "07", "intensity": "alta", "order": 1, "direction": "victima_testigo", "trigger": "El accidente ocurre" },
+        { "profile_id": "09", "intensity": "alta", "order": 2, "direction": "ataque_dominante", "trigger": "Primeras fotos o videos" },
+        { "profile_id": "06B", "intensity": "alta", "order": 2, "direction": "neutro_amplificador", "trigger": "Video o foto circula" },
+        { "profile_id": "06D", "intensity": "alta", "order": 3, "direction": "ataque", "trigger": "Infobae confirma" },
+        { "profile_id": "05B", "intensity": "alta", "order": 3, "direction": "ataque", "trigger": "Dato de víctimas" },
+        { "profile_id": "08", "intensity": "alta", "order": 3, "direction": "confrontacion_maxima", "trigger": "Confirmación de víctimas" },
+        { "profile_id": "10", "intensity": "alta", "order": 4, "direction": "oportunismo", "trigger": "Infobae publica" },
+        { "profile_id": "06C", "intensity": "alta", "order": 4, "direction": "ataque_narrativo_profundo", "trigger": "Crisis confirmada" },
+        { "profile_id": "02", "intensity": "alta", "order": 5, "direction": "ataque_sin_ambiguedad", "trigger": "Hay víctimas — no puede callar" },
+        { "profile_id": "06A", "intensity": "alta", "order": 5, "direction": "cobertura_sin_atenuantes", "trigger": "Crisis con víctimas" },
+        { "profile_id": "03", "intensity": "media", "order": 6, "direction": "silencio_o_contexto_sistemico", "trigger": "No puede defender lo indefendible" },
+        { "profile_id": "04", "intensity": "media", "order": 6, "direction": "silencio_o_ataque_estado_regulador", "trigger": "Busca ángulo" },
+        { "profile_id": "05A", "intensity": "baja", "order": 7, "direction": "silencio", "trigger": "No hay chiste posible" },
+        { "profile_id": "01", "intensity": "baja", "order": 7, "direction": "silencio_o_perfil_muy_bajo", "trigger": "No puede encuadrar esto" },
+        { "profile_id": "06E", "intensity": "alta", "order": 8, "direction": "verificacion_contexto_regulatorio", "trigger": "6-12hs después" }
+      ],
+      "key_rules": [
+        "Si hay video, todos los agentes escalan a intensidad máxima simultáneamente.",
+        "Los perfiles de defensa (defensor_industrial, liberal_clasico, ironico_liberal) se paralizan. Cualquier intento de defensa los destruye.",
+        "El Opositor con contradicciones pierde su ambigüedad — sale sin dudar porque el costo de no hablar es mayor."
+      ],
+      "temporal_arc": {
+        "hora_0": "El accidente ocurre, primeros testigos publican",
+        "hora_0_1": "Video/foto circula, Trolls, Infobae",
+        "hora_1_2": "Sindicalista, El Destape, Irónico Izquierda",
+        "hora_2_4": "Político Oportunista, Página/12, La Nación",
+        "hora_4_6": "Opositor sale sin ambigüedad. Perfiles de defensa en silencio.",
+        "hora_6_12": "Cenital analiza condiciones de seguridad e historial regulatorio. Ventana muy corta para el comunicado correcto."
+      }
+    },
+    {
+      "id": "T04",
+      "protagonist": "Industrial / Manufacturero",
+      "crisis_type": "conflicto_gobierno",
+      "crisis_label": "Conflicto con el gobierno",
+      "activation_order": [
+        { "profile_id": "04", "intensity": "alta", "order": 1, "direction": "defensa_empresa_ataque_estado", "trigger": "Declaración del gobierno" },
+        { "profile_id": "05A", "intensity": "alta", "order": 1, "direction": "defensa_ironica", "trigger": "Declaración del gobierno" },
+        { "profile_id": "01", "intensity": "alta", "order": 2, "direction": "defensa_activa_maxima", "trigger": "Gobierno ataca primero" },
+        { "profile_id": "03", "intensity": "alta", "order": 2, "direction": "defensa_tecnica", "trigger": "Gobierno ataca primero" },
+        { "profile_id": "09", "intensity": "alta", "order": 2, "direction": "ambos_lados", "trigger": "Tema en tendencia" },
+        { "profile_id": "06B", "intensity": "alta", "order": 3, "direction": "neutro_amplificador", "trigger": "Declaración oficial" },
+        { "profile_id": "02", "intensity": "media", "order": 4, "direction": "apoyo_gobierno_con_matices", "trigger": "Crisis instalada" },
+        { "profile_id": "06D", "intensity": "alta", "order": 4, "direction": "apoyo_gobierno", "trigger": "Crisis instalada" },
+        { "profile_id": "05B", "intensity": "media", "order": 4, "direction": "ataque_empresa", "trigger": "Crisis instalada" },
+        { "profile_id": "06C", "intensity": "media", "order": 5, "direction": "narrativa_pro_gobierno", "trigger": "Crisis consolidada" },
+        { "profile_id": "10", "intensity": "media", "order": 5, "direction": "oportunismo_segun_color", "trigger": "Crisis consolidada" },
+        { "profile_id": "06A", "intensity": "media", "order": 6, "direction": "favorable_empresa_critico_gobierno", "trigger": "Crisis consolidada" },
+        { "profile_id": "08", "intensity": "baja", "order": 7, "direction": "variable_segun_gobierno", "trigger": "Si hay ángulo laboral" },
+        { "profile_id": "07", "intensity": "baja", "order": 8, "direction": "ausente_salvo_amenaza_cierre", "trigger": "Solo si hay riesgo laboral" },
+        { "profile_id": "06E", "intensity": "media", "order": 9, "direction": "verifica_declaraciones_ambos", "trigger": "12hs después" }
+      ],
+      "key_rules": [
+        "El color del gobierno lo cambia todo. Si es peronista atacando a la empresa, la coalición de defensa se activa al máximo sin dudas.",
+        "Es la única crisis donde la empresa puede ganar en redes — tiene más aliados que el Estado dependiendo del contexto político.",
+        "El Sindicalista es impredecible: si el gobierno es peronista puede apoyarlo aunque perjudique a los trabajadores a corto plazo."
+      ],
+      "temporal_arc": {
+        "hora_0": "Declaración o medida del gobierno contra la empresa",
+        "hora_0_1": "Libertario, Irónico Liberal, Defensor Industrial",
+        "hora_1_3": "Infobae amplifica, coalición de defensa se organiza",
+        "hora_3_6": "Opositor, El Destape, Página/12 apoyan al gobierno",
+        "hora_6_12": "La Nación encuadra a favor de la empresa",
+        "hora_12_24": "Cenital verifica declaraciones. La crisis se convierte en debate de política económica."
+      }
+    },
+    {
+      "id": "T05",
+      "protagonist": "Tech / Startup",
+      "protagonist_examples": ["Mercado Libre", "Naranja X", "Despegar", "Ualá"],
+      "crisis_type": "filtracion_datos",
+      "crisis_label": "Filtración de datos / vulneración de privacidad",
+      "activation_order": [
+        { "profile_id": "07", "intensity": "alta", "order": 1, "direction": "victima_usuario", "trigger": "Descubre que sus datos fueron filtrados" },
+        { "profile_id": "09", "intensity": "alta", "order": 1, "direction": "ataque", "trigger": "Primeras denuncias" },
+        { "profile_id": "05B", "intensity": "alta", "order": 2, "direction": "ataque", "trigger": "Primer dato del alcance" },
+        { "profile_id": "05A", "intensity": "media", "order": 2, "direction": "ironia_sin_direccion_clara", "trigger": "El chiste está en la magnitud" },
+        { "profile_id": "06B", "intensity": "alta", "order": 3, "direction": "neutro_amplificador", "trigger": "Denuncia masiva en redes" },
+        { "profile_id": "06D", "intensity": "alta", "order": 3, "direction": "ataque", "trigger": "Infobae confirma" },
+        { "profile_id": "10", "intensity": "alta", "order": 4, "direction": "oportunismo", "trigger": "Infobae publica" },
+        { "profile_id": "03", "intensity": "media", "order": 5, "direction": "defensa_tecnica_responsabilidad_mercado", "trigger": "Crisis instalada" },
+        { "profile_id": "04", "intensity": "media", "order": 5, "direction": "ambiguo", "trigger": "No puede atacar al mercado pero tampoco defender la negligencia" },
+        { "profile_id": "06C", "intensity": "media", "order": 5, "direction": "ataque_encuadre_poder", "trigger": "Crisis instalada" },
+        { "profile_id": "02", "intensity": "media", "order": 6, "direction": "ataque_moderado", "trigger": "Crisis consolidada" },
+        { "profile_id": "06A", "intensity": "media", "order": 6, "direction": "neutro_contexto_regulatorio", "trigger": "Crisis consolidada" },
+        { "profile_id": "01", "intensity": "baja", "order": 7, "direction": "ausente", "trigger": "No es su territorio" },
+        { "profile_id": "08", "intensity": "baja", "order": 8, "direction": "ausente_salvo_laboral", "trigger": "Solo si hay despidos" },
+        { "profile_id": "06E", "intensity": "alta", "order": 8, "direction": "verificacion_tecnica_alcance", "trigger": "6-12hs después" }
+      ],
+      "key_rules": [
+        "La escala del daño define la intensidad. Con más de 1 millón de afectados todos los perfiles suben a intensidad máxima.",
+        "El Libertario no tiene jugada limpia — puede atacar al Estado regulador pero no puede defender la negligencia.",
+        "El usuario afectado reemplaza al trabajador afectado como perfil de impacto emocional."
+      ],
+      "temporal_arc": {
+        "hora_0": "Primeras denuncias de usuarios en redes",
+        "hora_0_2": "Trolls, usuarios afectados, Irónicos",
+        "hora_2_4": "Infobae confirma, El Destape amplifica",
+        "hora_4_6": "Político Oportunista, Liberal Clásico",
+        "hora_6_12": "La Nación, Página/12",
+        "hora_12_24": "Cenital verifica alcance técnico real. Cualquier imprecisión en el comunicado de la empresa es combustible para Cenital."
+      }
+    },
+    {
+      "id": "T06",
+      "protagonist": "Tech / Startup",
+      "crisis_type": "acusacion_monopolio",
+      "crisis_label": "Acusación de prácticas monopólicas / abuso de posición dominante",
+      "activation_order": [
+        { "profile_id": "06D", "intensity": "alta", "order": 1, "direction": "ataque", "trigger": "Denuncia o resolución judicial" },
+        { "profile_id": "06C", "intensity": "alta", "order": 1, "direction": "ataque_narrativo", "trigger": "Denuncia confirmada" },
+        { "profile_id": "05B", "intensity": "alta", "order": 2, "direction": "ataque", "trigger": "Primer dato de market share" },
+        { "profile_id": "09", "intensity": "alta", "order": 2, "direction": "ataque_dominante", "trigger": "Tema en tendencia" },
+        { "profile_id": "06B", "intensity": "alta", "order": 3, "direction": "neutro_amplificador", "trigger": "Resolución oficial" },
+        { "profile_id": "10", "intensity": "alta", "order": 3, "direction": "oportunismo", "trigger": "Infobae publica" },
+        { "profile_id": "03", "intensity": "alta", "order": 4, "direction": "defensa_el_mercado_regula_solo", "trigger": "Crisis instalada" },
+        { "profile_id": "04", "intensity": "alta", "order": 4, "direction": "defensa_anti_regulacion_estatal", "trigger": "Crisis instalada" },
+        { "profile_id": "05A", "intensity": "media", "order": 4, "direction": "defensa_ironica_libre_mercado", "trigger": "Crisis instalada" },
+        { "profile_id": "01", "intensity": "baja", "order": 5, "direction": "ausente", "trigger": "No es su territorio" },
+        { "profile_id": "02", "intensity": "media", "order": 5, "direction": "ataque_moderado", "trigger": "Crisis consolidada" },
+        { "profile_id": "06A", "intensity": "media", "order": 6, "direction": "favorable_empresa_critico_regulacion", "trigger": "Crisis consolidada" },
+        { "profile_id": "08", "intensity": "baja", "order": 7, "direction": "ausente_salvo_laboral", "trigger": "Solo si hay despidos" },
+        { "profile_id": "07", "intensity": "baja", "order": 8, "direction": "ausente", "trigger": "No hay víctima directa visible" },
+        { "profile_id": "06E", "intensity": "alta", "order": 8, "direction": "analisis_tecnico_mercado", "trigger": "12-24hs después" }
+      ],
+      "key_rules": [
+        "Liberal y Libertario se activan más fuerte que en cualquier otro escenario — están en su terreno natural.",
+        "La víctima es abstracta y eso beneficia a la empresa comunicacionalmente.",
+        "Cenital tarda pero cuando llega cierra el debate técnico."
+      ],
+      "temporal_arc": {
+        "hora_0": "Denuncia judicial o resolución de autoridad regulatoria",
+        "hora_0_2": "El Destape, Página/12, Irónico Izquierda",
+        "hora_2_4": "Infobae amplifica, Político Oportunista",
+        "hora_4_8": "Liberal y Libertario salen a defender con fuerza",
+        "hora_8_16": "La Nación contextualiza. Debate se desplaza hacia regulación vs libre mercado.",
+        "hora_24_mas": "Cenital analiza datos reales de mercado"
+      }
+    },
+    {
+      "id": "T07",
+      "protagonist": "Tech / Startup",
+      "crisis_type": "escandalo_laboral_cultura_toxica",
+      "crisis_label": "Escándalo laboral interno — cultura tóxica / discriminación / despidos masivos",
+      "activation_order": [
+        { "profile_id": "07", "intensity": "alta", "order": 1, "direction": "victima_denunciante", "trigger": "Publica su experiencia" },
+        { "profile_id": "09", "intensity": "alta", "order": 2, "direction": "ataque_dominante", "trigger": "Primer testimonio viral" },
+        { "profile_id": "05B", "intensity": "alta", "order": 2, "direction": "ataque", "trigger": "Dato o testimonio concreto" },
+        { "profile_id": "06D", "intensity": "alta", "order": 3, "direction": "ataque", "trigger": "Testimonio confirmado" },
+        { "profile_id": "06B", "intensity": "alta", "order": 3, "direction": "neutro_amplificador", "trigger": "Testimonio viral" },
+        { "profile_id": "05A", "intensity": "media", "order": 4, "direction": "silencio_o_ironia_incomoda", "trigger": "No puede defender cultura tóxica" },
+        { "profile_id": "10", "intensity": "alta", "order": 4, "direction": "oportunismo", "trigger": "Infobae publica" },
+        { "profile_id": "06C", "intensity": "media", "order": 5, "direction": "ataque_encuadre_laboral", "trigger": "Crisis instalada" },
+        { "profile_id": "03", "intensity": "media", "order": 5, "direction": "silencio_o_el_mercado_corregira", "trigger": "Incómodo" },
+        { "profile_id": "04", "intensity": "media", "order": 5, "direction": "silencio_o_cada_empresa_decide", "trigger": "Muy incómodo" },
+        { "profile_id": "02", "intensity": "media", "order": 6, "direction": "ataque_sin_ambiguedad", "trigger": "Hay víctimas humanas" },
+        { "profile_id": "06A", "intensity": "media", "order": 6, "direction": "cobertura_sin_atenuantes_fuertes", "trigger": "Crisis con rostro humano" },
+        { "profile_id": "01", "intensity": "baja", "order": 7, "direction": "ausente", "trigger": "No es su territorio" },
+        { "profile_id": "08", "intensity": "media", "order": 7, "direction": "sale_si_hay_derechos_laborales", "trigger": "Depende del sector" },
+        { "profile_id": "06E", "intensity": "media", "order": 8, "direction": "verifica_condiciones_laborales", "trigger": "12hs después" }
+      ],
+      "key_rules": [
+        "El número de testimonios es el multiplicador. 1 testimonio = crisis moderada. 3+ = crisis severa. 5+ = irreversible.",
+        "Liberal Clásico y Libertario quedan paralizados — no pueden defender sin destruirse.",
+        "LinkedIn es tan relevante como Twitter. El sistema debe simular ese canal."
+      ],
+      "temporal_arc": {
+        "hora_0": "Primer testimonio público de exempleado",
+        "hora_0_2": "Trolls, Irónico Izquierda, más testimonios",
+        "hora_2_4": "Infobae, El Destape, Político Oportunista",
+        "hora_4_8": "Perfiles pro mercado en silencio. Opositor sale sin ambigüedad.",
+        "hora_8_16": "La Nación cubre sin atenuantes fuertes. Empresa tiene presión para responder.",
+        "hora_16_24": "Cenital verifica. Si hay más testimonios: segunda ola de crisis."
+      }
+    },
+    {
+      "id": "T08",
+      "protagonist": "Servicios Masivos",
+      "protagonist_examples": ["Telecom", "Personal", "Fibertel", "Banco Nación", "Galicia"],
+      "crisis_type": "caida_servicio",
+      "crisis_label": "Caída del servicio / falla masiva",
+      "activation_order": [
+        { "profile_id": "07", "intensity": "alta", "order": 1, "direction": "victima_masiva", "trigger": "El servicio cae" },
+        { "profile_id": "09", "intensity": "alta", "order": 1, "direction": "ataque_humor", "trigger": "Servicio caído" },
+        { "profile_id": "05A", "intensity": "alta", "order": 1, "direction": "humor_sin_ideologia", "trigger": "El meme se hace solo" },
+        { "profile_id": "05B", "intensity": "alta", "order": 1, "direction": "humor_con_tesis", "trigger": "El mercado autorregulado" },
+        { "profile_id": "06B", "intensity": "alta", "order": 2, "direction": "neutro_amplificador", "trigger": "Tendencia masiva en redes" },
+        { "profile_id": "10", "intensity": "alta", "order": 3, "direction": "oportunismo", "trigger": "Infobae publica" },
+        { "profile_id": "03", "intensity": "media", "order": 4, "direction": "silencio_o_contexto_tecnico", "trigger": "No puede defender la falla" },
+        { "profile_id": "04", "intensity": "media", "order": 4, "direction": "silencio_o_ataca_regulacion", "trigger": "Incómodo" },
+        { "profile_id": "06D", "intensity": "media", "order": 4, "direction": "ataque_moderado", "trigger": "Crisis instalada" },
+        { "profile_id": "02", "intensity": "media", "order": 5, "direction": "ataque_modelo_negocios", "trigger": "Crisis consolidada" },
+        { "profile_id": "06C", "intensity": "media", "order": 5, "direction": "encuadre_estructural", "trigger": "Crisis consolidada" },
+        { "profile_id": "06A", "intensity": "media", "order": 6, "direction": "cobertura_tecnica_neutra", "trigger": "Crisis consolidada" },
+        { "profile_id": "01", "intensity": "baja", "order": 7, "direction": "ausente", "trigger": "No es su territorio" },
+        { "profile_id": "08", "intensity": "baja", "order": 7, "direction": "ausente_salvo_laboral", "trigger": "N/A" },
+        { "profile_id": "06E", "intensity": "media", "order": 8, "direction": "analiza_causas_antecedentes", "trigger": "6-12hs después" }
+      ],
+      "key_rules": [
+        "Es la única crisis donde los dos Irónicos van en la misma dirección — el humor es transversal.",
+        "La duración de la falla multiplica la intensidad. Más de 6hs sin resolución = crisis reputacional de largo plazo.",
+        "La respuesta en redes es más importante que la solución técnica. Respuesta empática en los primeros 20min puede convertir la crisis en historia de buena gestión."
+      ],
+      "temporal_arc": {
+        "hora_0": "El servicio cae, primeros usuarios publican",
+        "hora_0_30min": "Avalancha de memes, ambos Irónicos, Trolls",
+        "hora_1_2": "Infobae confirma la caída",
+        "hora_2_3": "Político Oportunista, El Destape",
+        "hora_3_6": "Si empresa comunicó: crisis baja rápido. Si sigue en silencio: segunda ola más agresiva.",
+        "hora_6_mas": "Cenital analiza causas e historial de fallas"
+      }
+    },
+    {
+      "id": "T09",
+      "protagonist": "Servicios Masivos",
+      "crisis_type": "aumento_tarifas",
+      "crisis_label": "Aumento de tarifas / quita de beneficios",
+      "activation_order": [
+        { "profile_id": "07", "intensity": "alta", "order": 1, "direction": "victima_indignacion", "trigger": "Notificación del aumento" },
+        { "profile_id": "09", "intensity": "alta", "order": 1, "direction": "ataque", "trigger": "Primeras quejas masivas" },
+        { "profile_id": "05B", "intensity": "alta", "order": 2, "direction": "ataque_con_tesis", "trigger": "Porcentaje del aumento" },
+        { "profile_id": "06D", "intensity": "alta", "order": 2, "direction": "ataque", "trigger": "Primeras quejas masivas" },
+        { "profile_id": "06B", "intensity": "alta", "order": 3, "direction": "neutro_amplificador", "trigger": "Tendencia en redes" },
+        { "profile_id": "10", "intensity": "alta", "order": 3, "direction": "oportunismo_maximo", "trigger": "Infobae publica" },
+        { "profile_id": "02", "intensity": "alta", "order": 4, "direction": "ataque_sin_ambiguedad", "trigger": "Crisis instalada" },
+        { "profile_id": "06C", "intensity": "alta", "order": 4, "direction": "ataque_narrativo", "trigger": "Crisis instalada" },
+        { "profile_id": "05A", "intensity": "media", "order": 5, "direction": "silencio_o_ironia_estado_regulador", "trigger": "Incómodo" },
+        { "profile_id": "03", "intensity": "media", "order": 5, "direction": "defensa_mercado_fija_precios", "trigger": "Crisis instalada" },
+        { "profile_id": "04", "intensity": "media", "order": 5, "direction": "defensa_libertad_precios", "trigger": "Incómodo con usuario enojado" },
+        { "profile_id": "06A", "intensity": "media", "order": 6, "direction": "contexto_economico_atenuante", "trigger": "Crisis consolidada" },
+        { "profile_id": "01", "intensity": "baja", "order": 7, "direction": "ausente", "trigger": "No es su territorio" },
+        { "profile_id": "08", "intensity": "baja", "order": 7, "direction": "ausente_salvo_laboral", "trigger": "N/A" },
+        { "profile_id": "06E", "intensity": "alta", "order": 8, "direction": "verifica_aumento_vs_inflacion", "trigger": "6-12hs después" }
+      ],
+      "key_rules": [
+        "El porcentaje del aumento define todo. 20% en contexto inflacionario = manejable. 80%+ = crisis severa.",
+        "Liberal y Libertario quedan en posición incómoda entre doctrina y popularidad.",
+        "Cenital es determinante: si confirma que el aumento supera inflación real, la empresa no tiene defensa técnica."
+      ],
+      "temporal_arc": {
+        "hora_0": "Notificación masiva de aumento a usuarios",
+        "hora_0_2": "Usuarios afectados, Trolls, Irónico Izquierda",
+        "hora_2_4": "Infobae, El Destape, Político Oportunista",
+        "hora_4_8": "Opositor, Página/12, debate se polariza",
+        "hora_8_16": "La Nación contextualiza",
+        "hora_12_24": "Cenital verifica números reales. Su veredicto define si la crisis se cierra o escala."
+      }
+    },
+    {
+      "id": "T10",
+      "protagonist": "Servicios Masivos — Salud",
+      "protagonist_examples": ["Swiss Medical", "OSDE", "Galeno", "Medifé"],
+      "crisis_type": "cobertura_negada",
+      "crisis_label": "Cobertura negada / caso médico viral",
+      "activation_order": [
+        { "profile_id": "07", "intensity": "alta", "order": 1, "direction": "victima_con_nombre_y_cara", "trigger": "Publica su caso" },
+        { "profile_id": "09", "intensity": "alta", "order": 1, "direction": "ataque_masivo", "trigger": "Caso viral" },
+        { "profile_id": "05B", "intensity": "alta", "order": 2, "direction": "ataque_indignacion_maxima", "trigger": "Caso viral" },
+        { "profile_id": "05A", "intensity": "baja", "order": 2, "direction": "silencio_total", "trigger": "No hay chiste posible" },
+        { "profile_id": "06D", "intensity": "alta", "order": 2, "direction": "ataque_maximo", "trigger": "Caso viral" },
+        { "profile_id": "06B", "intensity": "alta", "order": 3, "direction": "amplificacion_maxima", "trigger": "Caso con cara y nombre" },
+        { "profile_id": "10", "intensity": "alta", "order": 3, "direction": "oportunismo_maximo", "trigger": "Infobae publica" },
+        { "profile_id": "02", "intensity": "alta", "order": 3, "direction": "ataque_sin_ambiguedad", "trigger": "Hay víctima humana concreta" },
+        { "profile_id": "06C", "intensity": "alta", "order": 4, "direction": "ataque_narrativo_profundo", "trigger": "Crisis instalada" },
+        { "profile_id": "03", "intensity": "baja", "order": 5, "direction": "silencio_total", "trigger": "Indefendible" },
+        { "profile_id": "04", "intensity": "baja", "order": 5, "direction": "silencio_total", "trigger": "Indefendible" },
+        { "profile_id": "06A", "intensity": "media", "order": 5, "direction": "cobertura_sin_atenuantes", "trigger": "Crisis con víctima" },
+        { "profile_id": "01", "intensity": "baja", "order": 6, "direction": "ausente", "trigger": "No es su territorio" },
+        { "profile_id": "08", "intensity": "baja", "order": 7, "direction": "ausente", "trigger": "N/A" },
+        { "profile_id": "06E", "intensity": "alta", "order": 7, "direction": "verifica_contrato_marco_legal", "trigger": "6hs después" }
+      ],
+      "key_rules": [
+        "Es la crisis con mayor unanimidad opositora del sistema. Prácticamente no hay perfil que pueda defender a la empresa.",
+        "Liberal Clásico, Libertario e Irónico Liberal tienen silencio total — los tres simultáneamente.",
+        "La velocidad de resolución es la única salida. Cada hora sin resolver multiplica la intensidad de todos los agentes activos."
+      ],
+      "temporal_arc": {
+        "hora_0": "Usuario publica su caso con documentación",
+        "hora_0_1": "Caso se viraliza, Trolls, Irónico Izquierda",
+        "hora_1_2": "Infobae amplifica, El Destape",
+        "hora_2_3": "Político Oportunista, Opositor sin ambigüedad",
+        "hora_3_6": "Página/12 construye narrativa sistémica. Perfiles pro mercado en silencio total. Ventana crítica para revertir.",
+        "hora_6_mas": "Cenital verifica contrato y marco legal. Si no hay resolución: segunda ola devastadora."
+      }
+    },
+    {
+      "id": "T11",
+      "protagonist": "Líder político con perfil empresario",
+      "crisis_type": "escandalo_personal",
+      "crisis_label": "Escándalo personal / conducta privada expuesta",
+      "activation_order": [
+        { "profile_id": "09", "intensity": "alta", "order": 1, "direction": "segun_color_politico_protagonista", "trigger": "Filtración" },
+        { "profile_id": "05B", "intensity": "alta", "order": 1, "direction": "ataque_si_es_de_derecha", "trigger": "Filtración" },
+        { "profile_id": "05A", "intensity": "alta", "order": 1, "direction": "ataque_si_es_de_izquierda", "trigger": "Filtración" },
+        { "profile_id": "06D", "intensity": "alta", "order": 2, "direction": "ataque_si_es_de_derecha", "trigger": "Filtración confirmada" },
+        { "profile_id": "06B", "intensity": "alta", "order": 2, "direction": "neutro_amplificador", "trigger": "Filtración confirmada" },
+        { "profile_id": "10", "intensity": "alta", "order": 3, "direction": "oportunismo_maximo", "trigger": "Infobae publica" },
+        { "profile_id": "02", "intensity": "alta", "order": 3, "direction": "ataque_sin_ambiguedad", "trigger": "Crisis instalada" },
+        { "profile_id": "04", "intensity": "alta", "order": 4, "direction": "depende_del_color", "trigger": "Crisis instalada" },
+        { "profile_id": "03", "intensity": "media", "order": 4, "direction": "distancia_o_silencio", "trigger": "Incómodo" },
+        { "profile_id": "06C", "intensity": "alta", "order": 4, "direction": "ataque_si_es_derecha_silencio_si_es_propio", "trigger": "Crisis instalada" },
+        { "profile_id": "06A", "intensity": "media", "order": 5, "direction": "cobertura_sin_atenuantes_fuertes", "trigger": "Crisis consolidada" },
+        { "profile_id": "01", "intensity": "baja", "order": 6, "direction": "ausente_salvo_vinculo_empresario", "trigger": "Solo si hay ángulo económico" },
+        { "profile_id": "08", "intensity": "baja", "order": 6, "direction": "ausente", "trigger": "N/A" },
+        { "profile_id": "07", "intensity": "baja", "order": 7, "direction": "ausente", "trigger": "No hay víctima laboral" },
+        { "profile_id": "06E", "intensity": "media", "order": 7, "direction": "verifica_autenticidad_filtracion", "trigger": "6hs después" }
+      ],
+      "key_rules": [
+        "El color político del protagonista invierte coaliciones. El orquestador debe leer ese parámetro antes de activar agentes.",
+        "Si Cenital desmiente la filtración como fake, el protagonista puede reencuadrar como víctima de operación política.",
+        "Es el único caso donde el protagonista puede salir en positivo si detecta rápido que la filtración es falsa."
+      ],
+      "temporal_arc": {
+        "hora_0": "Filtración en redes",
+        "hora_0_1": "Trolls, Irónicos según color",
+        "hora_1_3": "Infobae amplifica, El Destape o medios opositores",
+        "hora_3_6": "Político Oportunista, Opositor. Protagonista tiene ventana para reencuadrar.",
+        "hora_6_12": "La Nación, Liberal Clásico toman distancia o silencio",
+        "hora_12_24": "Cenital verifica autenticidad. Su veredicto define si es crisis real u operación."
+      }
+    },
+    {
+      "id": "T12",
+      "protagonist": "Líder político con perfil empresario",
+      "crisis_type": "conflicto_interes",
+      "crisis_label": "Conflicto de interés / vínculo entre función pública y negocios privados",
+      "activation_order": [
+        { "profile_id": "06D", "intensity": "alta", "order": 1, "direction": "ataque", "trigger": "Dato del vínculo" },
+        { "profile_id": "05B", "intensity": "alta", "order": 1, "direction": "ataque", "trigger": "Primer dato público" },
+        { "profile_id": "09", "intensity": "alta", "order": 2, "direction": "ataque_dominante", "trigger": "Tema en tendencia" },
+        { "profile_id": "06B", "intensity": "alta", "order": 2, "direction": "neutro_amplificador", "trigger": "Dato confirmado" },
+        { "profile_id": "06C", "intensity": "alta", "order": 3, "direction": "ataque_narrativo_maximo", "trigger": "Dato confirmado" },
+        { "profile_id": "10", "intensity": "alta", "order": 3, "direction": "oportunismo_maximo", "trigger": "Infobae publica" },
+        { "profile_id": "04", "intensity": "alta", "order": 4, "direction": "ataque_casta_empresarial", "trigger": "Vínculo con Estado confirmado" },
+        { "profile_id": "02", "intensity": "media", "order": 4, "direction": "ataque_moderado_cuidado_pasivos_propios", "trigger": "Crisis instalada" },
+        { "profile_id": "05A", "intensity": "media", "order": 5, "direction": "ataque_ironico", "trigger": "Dato irrefutable" },
+        { "profile_id": "03", "intensity": "media", "order": 5, "direction": "distancia_esto_no_es_libre_mercado", "trigger": "Crisis instalada" },
+        { "profile_id": "06A", "intensity": "media", "order": 6, "direction": "cobertura_sin_atenuantes", "trigger": "Crisis consolidada" },
+        { "profile_id": "01", "intensity": "baja", "order": 6, "direction": "silencio_demasiado_cerca_del_fuego", "trigger": "N/A" },
+        { "profile_id": "08", "intensity": "baja", "order": 7, "direction": "ausente", "trigger": "N/A" },
+        { "profile_id": "07", "intensity": "baja", "order": 7, "direction": "ausente", "trigger": "N/A" },
+        { "profile_id": "06E", "intensity": "alta", "order": 7, "direction": "verifica_vinculos_societarios_contratos", "trigger": "12hs después" }
+      ],
+      "key_rules": [
+        "Es la única crisis donde el Libertario ataca sin importar el color del protagonista — conflicto de interés Estado-empresa privada = casta.",
+        "El Defensor Industrial desaparece — no puede defender sin quedar salpicado.",
+        "Cenital es el agente más importante. Los vínculos societarios requieren verificación técnica que solo él puede hacer."
+      ],
+      "temporal_arc": {
+        "hora_0": "Dato del vínculo aparece en redes o medio digital",
+        "hora_0_2": "El Destape, Irónico Izquierda, Trolls",
+        "hora_2_4": "Infobae amplifica, Página/12 encuadra",
+        "hora_4_6": "Libertario ataca, Político Oportunista. Liberal Clásico toma distancia.",
+        "hora_6_12": "La Nación cubre sin atenuantes. Protagonista decide si niega o contextualiza.",
+        "hora_12_24": "Cenital verifica vínculos reales. Si confirma: crisis irreversible."
+      }
+    },
+    {
+      "id": "T13",
+      "protagonist": "Líder político con perfil empresario",
+      "crisis_type": "declaracion_polemica",
+      "crisis_label": "Declaración polémica pública — frase fuera de contexto o dicho controversial",
+      "activation_order": [
+        { "profile_id": "09", "intensity": "alta", "order": 1, "direction": "segun_color_protagonista", "trigger": "Clip o cita circula" },
+        { "profile_id": "05B", "intensity": "alta", "order": 1, "direction": "ataque_si_es_derecha", "trigger": "Clip viral" },
+        { "profile_id": "05A", "intensity": "alta", "order": 1, "direction": "ataque_si_es_izquierda", "trigger": "Clip viral" },
+        { "profile_id": "06B", "intensity": "alta", "order": 2, "direction": "neutro_amplificador", "trigger": "Clip confirmado" },
+        { "profile_id": "06D", "intensity": "alta", "order": 2, "direction": "ataque_si_es_derecha", "trigger": "Clip confirmado" },
+        { "profile_id": "10", "intensity": "alta", "order": 3, "direction": "oportunismo_maximo", "trigger": "Infobae publica" },
+        { "profile_id": "04", "intensity": "alta", "order": 3, "direction": "depende_del_color", "trigger": "Crisis instalada" },
+        { "profile_id": "02", "intensity": "alta", "order": 4, "direction": "ataque", "trigger": "Crisis instalada" },
+        { "profile_id": "03", "intensity": "media", "order": 4, "direction": "distancia_o_defensa_segun_color", "trigger": "Crisis instalada" },
+        { "profile_id": "06C", "intensity": "alta", "order": 4, "direction": "ataque_si_es_derecha", "trigger": "Crisis instalada" },
+        { "profile_id": "06A", "intensity": "media", "order": 5, "direction": "cobertura_con_contexto", "trigger": "Crisis consolidada" },
+        { "profile_id": "01", "intensity": "baja", "order": 6, "direction": "ausente_salvo_vinculo_directo", "trigger": "N/A" },
+        { "profile_id": "08", "intensity": "baja", "order": 6, "direction": "ausente_salvo_laboral", "trigger": "N/A" },
+        { "profile_id": "07", "intensity": "baja", "order": 7, "direction": "ausente", "trigger": "N/A" },
+        { "profile_id": "06E", "intensity": "alta", "order": 7, "direction": "verifica_contexto_completo", "trigger": "3-6hs después" }
+      ],
+      "key_rules": [
+        "Si el clip circula cortado y descontextualizado la crisis es severa hasta que Cenital publique el contexto real.",
+        "Es la crisis que más rápido puede revertirse — una aclaración en las primeras 2hs con contexto completo puede cerrarla.",
+        "Los Irónicos son los agentes más peligrosos — una frase convertida en meme puede perseguir al protagonista años."
+      ],
+      "temporal_arc": {
+        "hora_0": "Clip o cita circula en redes",
+        "hora_0_30min": "Trolls, Irónicos de ambos lados, memes",
+        "hora_1_2": "Infobae amplifica, El Destape",
+        "hora_2_3": "Político Oportunista, Libertario según color. Ventana crítica para aclaración del protagonista.",
+        "hora_3_6": "Cenital verifica contexto completo. Si aclaración ya salió: crisis baja. Si no: Opositor instala narrativa.",
+        "hora_6_mas": "Si no se respondió: el meme ya tiene vida propia."
+      }
+    }
+  ]
+}
